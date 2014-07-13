@@ -1,0 +1,24 @@
+name:                luthor
+version:             0.0.0
+stability:           experimental
+synopsis:            Utilities for lexing and utilizing lexemes.
+-- description:         
+homepage:            https://github.com/Zankoku-Okuno/luthor
+license:             BSD3
+license-file:        LICENSE
+author:              Zankoku Okuno
+maintainer:          zankoku.okuno@gmail.com
+bug-reports:         https://github.com/Zankoku-Okuno/luthor/issues
+-- copyright:           
+category:            Language
+build-type:          Simple
+cabal-version:       >=1.8
+
+library
+  exposed-modules:     Text.Luthor.Lexeme
+  -- other-modules:       
+  build-depends:       base ==4.6.*, parsec ==3.*
+
+source-repository head
+  type: git
+  location: https://github.com/Zankoku-Okuno/luthor.git
