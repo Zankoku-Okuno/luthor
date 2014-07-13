@@ -1,12 +1,15 @@
-decide whether to base on parsec or attoparsec
+Text.Luthor --mostly drop-in replacement for Text.Parsec
+	Lex -- create scannerful parsers
+	Combinators -- common lexeme combinators
+	Syntax
+		Attoparsec -- common parsers in Attoparsec
+		Parsec -- common parsers in Parsec
+		Lex -- wrap Tools.Parsec in lexemes
+		Indent -- manage indentation
+	Regex -- compile regex strings into Parsec/Attoparsec/Lex
 
-data Lexeme a = Lexeme SourcePos a
-	            EndOfLexemes SourcePos
-
-create a lexeme from a parser
-
-satisfy &c for a lexeme list
-
+TODO
+====
 common lexers
 	parse numbers: integers, floats, in bases 2,8,10,16,64
 	stuff in w3c (http://dev.w3.org/html5/spec-preview/common-microsyntaxes.html)
@@ -16,13 +19,15 @@ common lexers
 		various kinds of strings, characters
 		templated strings
 	whitespace and indentation
-
 regex to lexer
-
 choose longest successful lexer
-
+	let wrap parser = (,) <$> parser <*> getPosition
+	results <- wrap <$> parsers
+	return $ maximumBy (comapre `on` snd) results
 shortcuts for managing indentation
-
 space/tab merging (in strict and convert flavors)
-
 simple functions to split strings on
+
+TEST
+====
+Combinators

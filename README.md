@@ -12,4 +12,4 @@ The thing is, the complexity of a language (such as indentation or heredocs) is 
 
 What's more, some lexemes are so common that they must absolutely be offered as part of a reusable library. How many times must we re-implement a string literal parser? A hex integer parser? A float parser? With Luthor, never again. Further, some patterns really do occur often, like selecting the longest lexeme of many possible, ignoring whitespace, or using regexes (sometimes it really is the simplest way: `/[1-9][0-9]+/`).
 
-Luthor is designed as an additional, transparent layer of tools built atop Parsec and Attoparsec. This way, Luthor will integrate well with existing projects looking for cleanup as well as new projects looking for familiar tools.
+Luthor is designed as an additional, transparent layer of tools built atop Parsec. This way, Luthor will integrate well with existing projects looking for cleanup as well as new projects looking for familiar tools.
