@@ -1,0 +1,28 @@
+decide whether to base on parsec or attoparsec
+
+data Lexeme a = Lexeme SourcePos a
+	            EndOfLexemes SourcePos
+
+create a lexeme from a parser
+
+satisfy &c for a lexeme list
+
+common lexers
+	parse numbers: integers, floats, in bases 2,8,10,16,64
+	stuff in w3c (http://dev.w3.org/html5/spec-preview/common-microsyntaxes.html)
+	common programming idioms
+		operators, identifiers, punctuation
+		comments
+		various kinds of strings, characters
+		templated strings
+	whitespace and indentation
+
+regex to lexer
+
+choose longest successful lexer
+
+shortcuts for managing indentation
+
+space/tab merging (in strict and convert flavors)
+
+simple functions to split strings on
