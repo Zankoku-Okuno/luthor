@@ -10,23 +10,19 @@ Text.Luthor --mostly drop-in replacement for Text.Parsec
 
 TODO
 ====
+wrap up parsec combinators into composable combinators
 common lexers
-	parse numbers: integers, floats, in bases 2,8,10,16,64
-	stuff in w3c (http://dev.w3.org/html5/spec-preview/common-microsyntaxes.html)
 	common programming idioms
-		operators, identifiers, punctuation
+		various kinds of escape sequences, strings
 		comments
-		various kinds of strings, characters
-		templated strings
 	whitespace and indentation
 regex to lexer
 choose longest successful lexer
 	let wrap parser = (,) <$> parser <*> getPosition
 	results <- wrap <$> parsers
 	return $ maximumBy (comapre `on` snd) results
-shortcuts for managing indentation
+shortcuts for managing indentation state
 space/tab merging (in strict and convert flavors)
-simple functions to split strings on
 
 TEST
 ====

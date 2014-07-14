@@ -19,13 +19,16 @@
 module Text.Luthor.Combinator (
     -- * Applicative Parsing
       (<$>), (<$$>), (<*>), (*>), (<*), (<**>)
+    , pure
     -- * Choices
     , (<||>), choice, dispatch
     -- ** Zero or One
     , option, optional, optional_
     -- * Many
+    , P.many, P.many1
     -- * Common Structures
     -- ** Surround
+    , chomp
     , P.between
     , between2
     -- ** Intercalate
@@ -37,6 +40,8 @@ module Text.Luthor.Combinator (
     , (<?>), expect
     , withPosition, withPositionEnd, withPositions
     , withState
+    -- * Re-exports
+    , try, (<|>), P.unexpected
     ) where
 
 import Text.Parsec.Prim (ParsecT, Stream, try, (<|>), (<?>))
@@ -90,7 +95,7 @@ optional :: Stream s m t => ParsecT s u m a -> ParsecT s u m (Maybe a)
 optional p = Just <$> p <||> pure Nothing
 {-| @optional_ p@ tries to parse @p@, but does not fail or consume input if @p@ fails.
     
-    This is like 'Text.Parsec.Combinator.optional', but the use of underscore is more idomatic
+    This is like 'Text.Parsec.Combinator.optional', but the use of underscore is more idiomatic
     for actions whose results are ignored.
 -}
 optional_ :: Stream s m t => ParsecT s u m a -> ParsecT s u m ()
@@ -98,8 +103,6 @@ optional_ p = void p <||> pure ()
 
 
 {-
-many
-many1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m [a]
 count :: Stream s m t => Int -> ParsecT s u m a -> ParsecT s u m [a]
 manyNM
 skipMany1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m ()
@@ -108,6 +111,10 @@ skipMany
 manyTill :: Stream s m t => ParsecT s u m a -> ParsecT s u m end -> ParsecT s u m [a]
 manyThru
 -}
+
+
+chomp :: Stream s m t => ParsecT s u m a -> ParsecT s u m trash -> ParsecT s u m a
+chomp p trash = p <* optional_ trash
 
 between2 :: Stream s m t => ParsecT s u m around -> ParsecT s u m a -> ParsecT s u m a
 between2 p = P.between p p

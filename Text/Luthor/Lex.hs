@@ -35,7 +35,7 @@
     lexers and wrap them all in 'lexeme', 3) create parsers for each case of payload
     using 'satisfy', 4) write your parsers and connect them with your lexers using 'runLuthorT'.
 -}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveFunctor, FlexibleContexts #-}
 module Text.Luthor.Lex (
     -- * Basic Concepts
       LexerT
@@ -78,7 +78,7 @@ type LuthorT t u m a = ParsecT [Lexeme t] u m a
 -}
 data Lexeme a = Lexeme SourcePos a
               | EndOfLexemes SourcePos
-    deriving (Eq)
+    deriving (Eq, Functor)
 
 -- |Synonym for lexers over the 'Identity' monad.
 type Lexer s u t = LexerT s u Identity t
