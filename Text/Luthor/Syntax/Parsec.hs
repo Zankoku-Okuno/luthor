@@ -20,6 +20,7 @@ module Text.Luthor.Syntax.Parsec (
     -- * Programming Idioms
     -- ** Whitespace
     , lws, crlf, lineBreak
+    , IndentPolicy(..), dentation
     -- ** Identifiers
     , many1Not
     , sigilized
@@ -39,6 +40,9 @@ module Text.Luthor.Syntax.Parsec (
     -- ** String Literals
     , sqString, dqString
     -- ** Comments
+    , lineComment
+    , blockComment
+    , nestingComment
     -- * Character Classes
     , charClass
     , uniPrint, uniPrintMinus
@@ -189,9 +193,36 @@ bsnl = void $ char '\\' *> lineBreak
 bsnlwsbs :: (Stream s m Char) => ParsecT s u m ()
 bsnlwsbs = void $ between2 (char '\\') $ lineBreak *> lws
 
+
 --TODO line-whitespace, any-whitespace, blank lines
---TODO indentation helpers
-    --inc. mergeWs
+
+-- |Determine how the depth of indentation is calculated.
+data IndentPolicy = DontMix [Char]
+                    -- ^Any of the passed Chars can be used, but
+                    --  allow only one kind of character in a line.
+                    --  Depth is number of those characters.
+                  | Convert [(Char, Int)]
+                    -- ^Allow any mix of of the passed Chars.
+                    --  Calculate depth by assigning a number
+                    --  to each of character by kind and summing.
+
+{-| Parse a 'lineBreak' followed by whitespace characters.
+    Return the depth of indentation.
+    
+    The acceptable whitespace characters and the method by whch to
+    caclulate depth is determined by an 'IntentPolicy'.
+-}
+dentation :: (Stream s m Char) => IndentPolicy -> ParsecT s u m Int
+dentation (DontMix cs) = try $ do
+    lineBreak
+    ws <- P.many $ oneOf cs
+    when (length (nub ws) > 1) $ unexpected "mixed indentation"
+    return $ length ws
+dentation (Convert table) = try $ do
+    lineBreak
+    ws <- P.many $ oneOf (fst <$> table)
+    return $ sum [fromJust $ lookup c table | c <- ws]
+
 
 {-| Parse one or more characters that satisfy a predicate, but with additional
     restrictions on the first character parsed.
@@ -200,7 +231,7 @@ bsnlwsbs = void $ between2 (char '\\') $ lineBreak *> lws
     numbers (such as @/[1-9][0-9]*/@), and possibly other things.
 
 @
-ident = 'charClass' \"a-zA-Z0-9_\" \`many1Not\` 'charClass' \"0-9\"
+identifier = 'charClass' \"a-zA-Z0-9_\" \`many1Not\` 'charClass' \"0-9\"
 naturalLiteral = 'stringToInteger' 10 \<$\> 'charClass' \"0-9\" \`many1Not\` (==\'0\')
 @
 -}
@@ -284,9 +315,23 @@ numOptSign :: (Stream s m Char) => ParsecT s u m Integer
 numOptSign = P.option 1 numSign
 
 
+{-| Parse an integer: optional sign, then a number of digits.
+    Bases 10, 16, 8 and 2 are supported with appropriate
+    prefixes before the digits.
+
+    No prefix is base 10.
+    @0x@ case-insensitive is base 16.
+    @0o@ case-insensitive is base 8.
+    @0n@ case-insensitive is base 2.
+-}
 integer :: (Stream s m Char) => ParsecT s u m Integer
 integer = try $ numOptSign <$$> (*) <*> (numNatural =<< numBase)
 
+{-| Parse a rational number: an optional sign, then two sequences
+    of digits separated by a slash. Return the ratio of the appropriate
+    sign between the two numbers. Bases 10, 16, 8 and 2 are supported as
+    in 'integer'.
+-}
 rational :: (Stream s m Char) => ParsecT s u m Rational
 rational = try $ do
     sign <- toRational <$> numOptSign
@@ -296,6 +341,18 @@ rational = try $ do
     denom <- numDenominator base
     return $ sign * numer * denom
 
+{-| Parse a number in scientific notation: an optional sign, then
+    two sequences of digits separated by a 'dot', and finally an
+    optional exponent, which isan exponent letter, an optional sign
+    and finally one or more digits.
+
+    Only bases 10 and 16 are supported, and the base of the exponent
+    is the same as the base of the significand. In base ten, the
+    exponent letter is @e@, and in base 16, it is @h@.
+
+    Note that digits are required on both sides of the (hexa)decimal
+    point, so neither @0.@ nor @.14@ are recognized.
+-}
 scientific :: (Stream s m Char) => ParsecT s u m Rational
 scientific = try $ do
     sign <- toRational <$> numOptSign
@@ -374,12 +431,37 @@ uniEsc = loUniEsc <|> hiUniEsc
 --TODO html entities
 
 
+{-| Parse a single-quoted string with no escape sequences, except that
+    a single-quote in the string is encoded as two single-quote characters.
+
+    This is as single-quoted strings in SQL and Rc (the shell in Plan9).
+    It is an excellent encoding for strings because they are so easy to
+    validate from untrusted input and escape for rendering, whether it
+    is done by human or machine.
+-}
 sqString :: (Stream s m Char) => ParsecT s u m String
 sqString = between2 (char '\'') (P.many $ normal <|> escape)
     where
     normal = satisfy $ uniPrintMinus (=='\'')
     escape = const '\'' <$> "''"
 
+{-| Parse a double-quoted string with common backslash escape sequences.
+    
+    * We use 'letterEsc' with the passed table of contents.
+    * Also, 'decimalEsc', 'asciiEsc' and 'uniEsc' are allowed.
+    * Further, the @\\&@ stands for no character: it literally adds nothing
+        to the string in which it appears, but it can be useful as in
+        @\\1270\\&@.
+    * Finally, lines can be folded with a backslash-newline-backslash, ignoring
+        any 'lws' between the newline and the second backslash. This is preferred
+        over a simple backslash-newline, as it reduces any need to remember how
+        leading whitespace is treated after a line-fold.
+
+    The escapes parsed by 'letterEsc' are preferred to the other escape
+    sequences. Note that there are no escape sequences for backslash or
+    double-quote by default (aside from a numerical escape), so you'll
+    need to include them in the table for 'letterEsc'.
+-}
 dqString :: (Stream s m Char) => [(Char, Char)] -> ParsecT s u m String
 dqString table = between2 (char '\"') (catMaybes <$> P.many (normal <|> escape <|> empty))
     where
@@ -390,8 +472,42 @@ dqString table = between2 (char '\"') (catMaybes <$> P.many (normal <|> escape <
 --TODO docstrings, triple-quote strings
 
 
---TODO comments (line, block, nesting)
-    --remember not to eat the linebreak after a line comment
+-- |Parse a comment beginning with the passed string and ending at
+--  (but not including) a 'lineBreak'.
+lineComment :: (Stream s m Char) => String -> ParsecT s u m String
+lineComment start = do
+    string start
+    P.anyChar `manyTill` lineBreak
+
+{-| Parse a non-nesting comment beginning at the first passed string
+    and ending with (and including) the second passed string.
+
+    C.f 'nestingComment'.
+-}
+blockComment :: (Stream s m Char)
+             => String -- ^Start the block comment
+             -> String -- ^End the block comment
+             -> ParsecT s u m String
+blockComment start end = do
+    string start
+    P.anyChar `manyThru` string end
+    --FIXME fail if reached end of file -- probably edit manyThru/manyTill if needed
+
+{-| Parse a nesting block comment.
+
+    C.f. 'blockComment'.
+-}
+nestingComment :: (Stream s m Char)
+               => String -- ^Start a comment
+               -> String -- ^End a comment
+               -> ParsecT s u m String
+nestingComment start end = do
+    string start
+    concat <$> (inner <|> text) `manyThru` string end
+    --FIXME fail if reached end of file -- probably edit manyThru/manyTill if needed
+    where
+    inner = nestingComment start end >>= \body -> return (start ++ body ++ end)
+    text = P.anyChar `manyTill` (string start <|> string end)
 
 
 {-| Match any character in a set.

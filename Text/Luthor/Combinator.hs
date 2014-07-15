@@ -26,6 +26,7 @@ module Text.Luthor.Combinator (
     , option, optional, optional_
     -- * Many
     , P.many, P.many1
+    , manyTill, manyThru
     -- * Common Structures
     -- ** Surround
     , chomp
@@ -108,9 +109,11 @@ manyNM
 skipMany1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m ()
 skipMany
 
-manyTill :: Stream s m t => ParsecT s u m a -> ParsecT s u m end -> ParsecT s u m [a]
-manyThru
 -}
+manyTill :: Stream s m t => ParsecT s u m a -> ParsecT s u m end -> ParsecT s u m [a]
+manyTill p end = p `P.manyTill` lookAhead end
+manyThru :: Stream s m t => ParsecT s u m a -> ParsecT s u m end -> ParsecT s u m [a]
+manyThru = P.manyTill
 
 
 chomp :: Stream s m t => ParsecT s u m a -> ParsecT s u m trash -> ParsecT s u m a

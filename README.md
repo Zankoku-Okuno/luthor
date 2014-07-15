@@ -3,6 +3,8 @@ Luthor
 
 Haskell library for lexing and utilizing lexemes.
 
+If you're building a big parser, Luthor will save you save hundreds of sloc, hours of debugging, and at least a few headaches.
+
 Motivation
 ----------
 
