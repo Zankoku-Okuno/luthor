@@ -1,27 +1,14 @@
-Text.Luthor --mostly drop-in replacement for Text.Parsec
-	Lex -- create scannerful parsers
-	Combinators -- common lexeme combinators
-	Syntax
-		Attoparsec -- common parsers in Attoparsec
-		Parsec -- common parsers in Parsec
-		Indent -- manage indentation
-	Regex -- compile regex strings into Parsec/Attoparsec/Lex
-
 TODO
 ====
-p sepAroundBy sep = sep? *> p sepEndBy sep
 regex to parser
-choose longest successful lexer
-	-- the trick is rewinding the state
-	let wrap parser = (,) <$> parser <*> getPosition
-	results <- wrap <$> parsers
-	return $ maximumBy (compare `on` snd) results
+
 
 TEST
 ====
 Combinator
 Syntax
 Indent
+
 
 CLEANUP
 =======

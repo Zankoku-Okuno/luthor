@@ -53,6 +53,7 @@ module Text.Luthor.Combinator (
     , pure
     -- * Choices
     , (<||>), choice, dispatch
+    , longestOf
     -- ** Zero or One
     , option, optional, optional_
     -- * Many
@@ -72,6 +73,7 @@ module Text.Luthor.Combinator (
     , sepBy, sepBy1
     , sepEndBy, sepEndBy1
     , endBy, endBy1
+    , sepAroundBy, sepAroundBy1
     -- ** Chaining
     , chainl, chainl1
     , chainr, chainr1
@@ -91,7 +93,9 @@ import qualified Text.Parsec.Prim as P
 import qualified Text.Parsec.Combinator as P
 import Text.Parsec.Pos
 
+import Data.Function (on)
 import Data.Maybe
+import Data.List
 import Control.Applicative hiding ((<|>), optional)
 import Control.Monad
 
@@ -129,6 +133,22 @@ dispatch [] = P.choice []
 dispatch ((canary, payload):rest) = do
     go <- not . isNothing <$> optional canary
     if go then payload else dispatch rest
+
+longestOf :: Stream s m t => [ParsecT s u m a] -> ParsecT s u m a
+longestOf [] = P.choice []
+longestOf ps = do
+    results <- catMaybes <$> sequence (wrap <$> ps)
+    when (null results) $ P.choice []
+    let (result, s') = maximumBy (compare `on` P.statePos . snd) results
+    P.setParserState s'
+    return result
+    where
+    wrap p = optional $ do
+        s0 <- P.getParserState
+        result <- p
+        s' <- P.getParserState
+        P.setParserState s0
+        return (result, s')
 
 
 {-| @option x p@ tries to apply parser @p@. If @p@ fails, no input is consumed and @x@
@@ -261,6 +281,12 @@ endBy p sep = P.many $ p <* sep
 -- and ended by @sep@. Returns a list of values returned by @p@. 
 endBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 endBy1 p sep = P.many1 $ p <* sep
+
+sepAroundBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
+sepAroundBy p sep = optional_ sep *> sepEndBy p sep
+
+sepAroundBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
+sepAroundBy1 p sep = optional_ sep *> sepEndBy1 p sep
 
 
 -- | @chainl p op x@ parses /zero/ or more occurrences of @p@,
