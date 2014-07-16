@@ -1,7 +1,7 @@
 name:                luthor
 version:             0.0.0
 stability:           experimental
-synopsis:            Utilities for lexing and utilizing lexemes.
+synopsis:            Tools for lexing and utilizing lexemes that integrate with Parsec.
 description:         Like parser combinators? Building a big parser? Save hundreds of
                      sloc, hours of debuging and several headaches by using Luthor
                      on top of the familiar Parsec library.
@@ -29,7 +29,7 @@ cabal-version:       >=1.8
 library
   exposed-modules:     Text.Luthor.Lex,
                        Text.Luthor.Combinator,
-                       Text.Luthor.Syntax.Parsec
+                       Text.Luthor.Syntax
   -- other-modules:       
   build-depends:       base ==4.6.*,
                        mtl ==2.*,

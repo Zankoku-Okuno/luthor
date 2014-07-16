@@ -54,7 +54,6 @@ module Text.Luthor.Lex (
     , isAtEnd
     ) where
 
-import Control.Applicative hiding (many)
 import Control.Monad
 import Control.Monad.Identity
 
@@ -62,6 +61,7 @@ import Text.Parsec.Error
 import Text.Parsec.Pos
 import Text.Parsec.Prim
 import Text.Parsec.Combinator (eof)
+import Text.Luthor.Combinator
 
 
 {-| A lexer: producer of 'Lexeme's -}
@@ -161,7 +161,7 @@ anyLexeme = tokenPrim _lexShow _lexUpdatePos _lexCheck
 
 {-| Succeed only at the end of the lexeme stream. -}
 endOfLexemes :: (Show a, Stream [Lexeme a] m (Lexeme a)) => LuthorT a u m ()
-endOfLexemes = (<?> "end of stream") $ do
+endOfLexemes = expect "end of input" $ do
     t <- getInput
     case t of
         (Lexeme _ x:_) -> unexpected $ show x

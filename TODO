@@ -9,6 +9,8 @@ Text.Luthor --mostly drop-in replacement for Text.Parsec
 
 TODO
 ====
+manyOf = many . choice
+p aroundBy sep = sep? *> p sepEndBy sep
 structure for managing indentation state
 regex to parser
 choose longest successful lexer
