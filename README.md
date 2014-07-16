@@ -5,21 +5,22 @@ Haskell library for lexing and utilizing lexemes.
 
 If you're considering Parsec for your next big parser, Luthor will save you save hundreds of sloc, hours of debugging, and at least a few headaches. If you're considering a non-combinator approach, the savings cannot even be quantified.
 
-For example, here's a Scheme parser:
+For example, here are some self-contained selections from a Scheme parser:
 
 ```haskell
 import Text.Luthor.Syntax
-import Text.Luthor.Combinators
+import Text.Luthor.Combinator
 
-symbol = toLower <$> (it <||> oneOf "+_") `notFollowedBy` it
+symbol = (it <||> (:[]) <$> oneOf "+_") `notFollowedBy` it
 	where
-	it = allowed `many1Not` charClass "0-9.+_"
+	it = toLower <$> allowed `many1Not` charClass "0-9.+_"
 	allowed = charClass "a-zA-Z0-9!$%&*/:<=>?~_^"
-TODO
+
+TODO comment parser, some number parsing, the list rule
 ```
 
-* [API Reference](https://hackage.haskell.org/package/luthor),
-* [Documentation](http://zankoku-okuno.viewdocs.io/luthor/),
+* [API Reference](https://hackage.haskell.org/package/luthogr)
+* [Documentation](http://zankoku-okuno.viewdocs.io/luthor/)
 * [Issues](https://github.com/Zankoku-Okuno/luthor/issues)
 
 

@@ -9,9 +9,7 @@ Text.Luthor --mostly drop-in replacement for Text.Parsec
 
 TODO
 ====
-manyOf = many . choice
-p aroundBy sep = sep? *> p sepEndBy sep
-structure for managing indentation state
+p sepAroundBy sep = sep? *> p sepEndBy sep
 regex to parser
 choose longest successful lexer
 	-- the trick is rewinding the state
@@ -21,8 +19,9 @@ choose longest successful lexer
 
 TEST
 ====
-Combinators
-Syntax.Parsec
+Combinator
+Syntax
+Indent
 
 CLEANUP
 =======

@@ -59,6 +59,7 @@ module Text.Luthor.Combinator (
     , P.many, P.many1
     , many_, many1_
     , P.count, atLeast, atMost, manyNM
+    , manyOf, manyOf_
     -- * Common Structures
     -- ** Terminate
     , manyTill
@@ -162,6 +163,12 @@ atMost m p | m <= 0    = pure []
 -- | @manyNM n m p@ applies the parser @p@ @n@ or more times up to @m@ times.
 manyNM :: Stream s m t => Int -> Int -> ParsecT s u m a -> ParsecT s u m [a]
 manyNM l m p = P.count l p <$$> (++) <*> atMost (m-l) p
+
+manyOf :: Stream s m t => [ParsecT s u m a] -> ParsecT s u m [a]
+manyOf = P.many . choice
+
+manyOf_ :: Stream s m t => [ParsecT s u m a] -> ParsecT s u m ()
+manyOf_ = many_ . choice
 
 -- | @many1_ p@ applies the parser @p@ /one/ or more times, skipping
 -- its result.

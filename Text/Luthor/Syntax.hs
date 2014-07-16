@@ -4,7 +4,7 @@
     'numExponent', &c.
 -}
 {-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
-module Text.Luthor.Syntax.Parsec (
+module Text.Luthor.Syntax (
     -- * Basic Characters and Strings
       char, string, charI, stringI
     -- ** Common Classes

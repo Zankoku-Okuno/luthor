@@ -27,9 +27,11 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 library
-  exposed-modules:     Text.Luthor.Lex,
-                       Text.Luthor.Combinator,
-                       Text.Luthor.Syntax
+  exposed-modules:    
+    Text.Luthor.Lex
+    Text.Luthor.Combinator
+    Text.Luthor.Syntax
+    Text.Luthor.Indent
   -- other-modules:       
   build-depends:       base ==4.6.*,
                        mtl ==2.*,
