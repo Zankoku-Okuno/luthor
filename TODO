@@ -4,26 +4,34 @@ Text.Luthor --mostly drop-in replacement for Text.Parsec
 	Syntax
 		Attoparsec -- common parsers in Attoparsec
 		Parsec -- common parsers in Parsec
-		Lex -- wrap Tools.Parsec in lexemes
 		Indent -- manage indentation
 	Regex -- compile regex strings into Parsec/Attoparsec/Lex
 
 TODO
 ====
-wrap up parsec combinators into composable combinators
-common lexers
-	common programming idioms
-		various kinds of escape sequences, strings
-		comments
-	whitespace and indentation
-regex to lexer
+structure for managing indentation state
+regex to parser
 choose longest successful lexer
+	-- the trick is rewinding the state
 	let wrap parser = (,) <$> parser <*> getPosition
 	results <- wrap <$> parsers
-	return $ maximumBy (comapre `on` snd) results
-shortcuts for managing indentation state
-space/tab merging (in strict and convert flavors)
+	return $ maximumBy (compare `on` snd) results
 
 TEST
 ====
 Combinators
+Syntax.Parsec
+
+CLEANUP
+=======
+common lexers
+	common programming idioms
+		heredocs
+		sci notation allowing 0. and .0
+		blankline helper
+		check that there's nothing more I can do about whitespace
+		? triple-quoted strings
+		names for bsnl and bsnlwsbs
+		html-style entities
+		make sure block/nesting comments fail if unclosed
+		? use CI type constructor

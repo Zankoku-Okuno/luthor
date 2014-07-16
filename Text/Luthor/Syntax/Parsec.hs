@@ -154,7 +154,7 @@ bsEsc p = try $ char '\\' *> satisfy p
 
 -- |Parse @\"yes\"@, @\"y\"@, or @\"1\"@, case-insensitive. Return True.
 yes :: (Stream s m Char) => ParsecT s u m Bool
-yes = const True <$> choice [
+yes = True <$ choice [
       void $ stringI "yes"
     , void $ charI 'y'
     , void $ char '1'
@@ -162,7 +162,7 @@ yes = const True <$> choice [
 
 -- |Parse @\"no\"@, @\"n\"@, or @\"0\"@, case-insensitive. Return False.
 no :: (Stream s m Char) => ParsecT s u m Bool
-no = const False <$> choice [
+no = False <$ choice [
       void $ stringI "no"
     , void $ charI 'n'
     , void $ char '0'
@@ -356,7 +356,7 @@ rational = try $ do
 scientific :: (Stream s m Char) => ParsecT s u m Rational
 scientific = try $ do
     sign <- toRational <$> numOptSign
-    base <- option 10 $ const 16 <$> stringI "0x"
+    base <- option 10 $ 16 <$ stringI "0x"
     whole <- toRational <$> numNatural base
     dot
     mantissa <- numMantissa base
@@ -443,7 +443,7 @@ sqString :: (Stream s m Char) => ParsecT s u m String
 sqString = between2 (char '\'') (P.many $ normal <|> escape)
     where
     normal = satisfy $ uniPrintMinus (=='\'')
-    escape = const '\'' <$> "''"
+    escape = '\'' <$ "''"
 
 {-| Parse a double-quoted string with common backslash escape sequences.
     
@@ -467,7 +467,7 @@ dqString table = between2 (char '\"') (catMaybes <$> P.many (normal <|> escape <
     where
     normal = (Just <$>) . satisfy $ uniPrintMinus (`elem` "\\\"")
     escape = (Just <$>) $ letterEsc table <|> decimalEsc <|> asciiEsc <|> uniEsc
-    empty = (const Nothing <$>) $ void "\\&" <|> bsnlwsbs
+    empty = (Nothing <$) $ void "\\&" <|> bsnlwsbs
 
 --TODO docstrings, triple-quote strings
 
