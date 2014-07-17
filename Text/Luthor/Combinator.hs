@@ -86,6 +86,7 @@ module Text.Luthor.Combinator (
     , withState
     -- * Re-exports
     , try, (<|>), P.unexpected
+    --FIXME I need to re-export a lot of crap, but maybe in Text.Luthor
     ) where
 
 import Text.Parsec.Prim (ParsecT, Stream, try, (<|>), (<?>))
@@ -249,7 +250,7 @@ between2 p = P.between p p
 --
 -- >  commaSep p  = p `sepBy` (symbol ",")
 sepBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
-sepBy p sep = sepBy1 p sep <|> pure []
+sepBy p sep = option [] $ sepBy1 p sep
 
 -- | @sepBy1 p sep@ parses /one/ or more occurrences of @p@, separated
 -- by @sep@. Returns a list of values returned by @p@. 
@@ -262,7 +263,7 @@ sepBy1 p sep = p <$$> (:) <*> (many . try $ sep *> p)
 --
 -- >  haskellStatements  = haskellStatement `sepEndBy` semi
 sepEndBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
-sepEndBy p sep = sepEndBy1 p sep <|> pure []
+sepEndBy p sep = option [] $ sepEndBy1 p sep
 
 -- | @sepEndBy1 p sep@ parses /one/ or more occurrences of @p@,
 -- separated and optionally ended by @sep@. Returns a list of values
@@ -283,7 +284,7 @@ endBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m 
 endBy1 p sep = P.many1 $ p <* sep
 
 sepAroundBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
-sepAroundBy p sep = optional_ sep *> sepEndBy p sep
+sepAroundBy p sep = option [] $ sepAroundBy1 p sep
 
 sepAroundBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 sepAroundBy1 p sep = optional_ sep *> sepEndBy1 p sep
@@ -357,7 +358,7 @@ lookAhead = P.lookAhead . try
    
     >  keywordLet = string "let" `notFollowedBy` alphaNum
 -}
-notFollowedBy :: (Stream s m t, Show t) => ParsecT s u m a -> ParsecT s u m t -> ParsecT s u m a
+notFollowedBy :: (Stream s m t, Show trash) => ParsecT s u m a -> ParsecT s u m trash -> ParsecT s u m a
 notFollowedBy p la = try $ p <* P.notFollowedBy la
 
 
