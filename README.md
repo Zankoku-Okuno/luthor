@@ -1,6 +1,8 @@
 Luthor
 ======
 
+[![Build Status](https://travis-ci.org/Zankoku-Okuno/luthor.svg?branch=master)](https://travis-ci.org/Zankoku-Okuno/luthor)
+
 Haskell library for lexing and utilizing lexemes.
 
 If you're considering Parsec for your next big parser, Luthor will save you save hundreds of sloc, hours of debugging, and at least a few headaches. If you're considering a non-combinator approach, the savings cannot even be quantified.

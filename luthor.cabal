@@ -28,6 +28,7 @@ cabal-version:       >=1.8
 
 library
   exposed-modules:    
+    Text.Luthor
     Text.Luthor.Lex
     Text.Luthor.Combinator
     Text.Luthor.Syntax

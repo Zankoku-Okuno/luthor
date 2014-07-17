@@ -1,10 +1,9 @@
 import System.IO
 import System.Exit
 
-import Text.Parsec.Prim hiding (lookAhead)
+import Text.Luthor
 import qualified Text.Parsec as P
 import Text.Parsec.Char (string, char, anyChar)
-import Text.Luthor.Combinator
 
 main = do
     results <- sequence [ 
@@ -16,8 +15,7 @@ main = do
         , choice [string "foo", string "bar", string "fly"] `matches` "fly"
         , dispatch [(string "foo", string "bar"), (string "fly", string "wheel")] `matches` "foobar"
         , dispatch [(string "foo", string "bar"), (string "fly", string "wheel")] `matches` "flywheel"
-        , let isLong x = if x == "lets" then pure () else fail "found the short one"
-          in (isLong =<< longestOf [string "let", string "lets"]) `matches` "lets"
+        , longestOf [string "let", string "lets"] `parses` "lets" $ "lets"
         , longestOf [string "let", string "lets"] `matches` "let"
         -- ** Zero or One
         , (optional_ (string "foo") *> string "fly") `matches` "foofly"
@@ -78,9 +76,9 @@ main = do
         ]
     if id `all` results then exitSuccess else exitFailure
 
+
 type Parser = Parsec String ()
 run p = runP p () ""
-
 
 test :: Bool -> Parser a -> String -> IO Bool
 test expect p input = do
@@ -93,6 +91,19 @@ test expect p input = do
             return False
         (False, Right _) -> do
             putErrLn $ "false positive on " ++ show input
+            return False
+
+parses :: (Show a, Eq a) => Parser a -> String -> a -> IO Bool
+parses p input expect = do
+    case run (p <* P.eof) input of
+        Right val | val == expect -> return True
+                  | otherwise -> do
+                        putErrLn $ "false positive on " ++ show input
+                        putErrLn $ "found " ++ show val
+                        return False
+        Left err -> do
+            putErrLn $ "false negative on " ++ show input
+            putErrLn $ show err
             return False
 
 matches = test True

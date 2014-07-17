@@ -80,6 +80,7 @@ module Text.Luthor.Combinator (
     -- * Lookahead
     , lookAhead
     , notFollowedBy
+    , atEndOfInput, endOfInput
     -- * Additional Data
     , (<?>), expect
     , withPosition, withPositionEnd, withPositions
@@ -360,6 +361,12 @@ lookAhead = P.lookAhead . try
 -}
 notFollowedBy :: (Stream s m t, Show trash) => ParsecT s u m a -> ParsecT s u m trash -> ParsecT s u m a
 notFollowedBy p la = try $ p <* P.notFollowedBy la
+
+atEndOfInput :: (Stream s m t, Show t) => ParsecT s u m Bool
+atEndOfInput = option False $ True <$ endOfInput
+
+endOfInput :: (Stream s m t, Show t) => ParsecT s u m ()
+endOfInput = P.eof
 
 
 -- |Flipped '<?>'.
