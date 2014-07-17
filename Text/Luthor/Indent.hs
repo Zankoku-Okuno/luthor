@@ -25,12 +25,24 @@ module Text.Luthor.Indent (
     , isIndentEnabled
     , getIndentDepth
     , withIndentation, withoutIndentation
-    -- * Re-exports and Overrides
+    -- * State Manipulation
     --FIXME don't export combinators
-    , module Text.Luthor
     , getState, putState, modifyState
     --TODO manual push/pop indentation
+    -- * Re-exports
+    , module Text.Parsec.Prim
+    , ParseError, errorPos
+    , SourcePos
+    , SourceName, Line, Column
+    , sourceName, sourceLine, sourceColumn
     ) where
+
+import Text.Parsec.Prim hiding (lookAhead, getState, putState, modifyState)
+import Text.Parsec.Error (ParseError, errorPos)
+import Text.Parsec.Pos ( SourcePos
+                       , SourceName, Line, Column
+                       , sourceName, sourceLine, sourceColumn
+                       )
 
 import Control.Monad
 import Control.Monad.Identity
