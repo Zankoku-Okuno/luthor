@@ -26,9 +26,8 @@ module Text.Luthor.Indent (
     , getIndentDepth
     , withIndentation, withoutIndentation
     -- * State Manipulation
-    --FIXME don't export combinators
     , getState, putState, modifyState
-    --TODO manual push/pop indentation
+    , peekIndentation, popIndentation, pushIndentation
     -- * Re-exports
     , module Text.Parsec.Prim
     , ParseError, errorPos
@@ -245,3 +244,26 @@ modifyState :: (Monad m) => (u -> u) -> ParsecIT s u m ()
 modifyState f = void $ P.updateParserState $
     \s@State {stateUser = (u, i)} -> s { stateUser = (f u, i) }
 
+
+-- |Peek the top of the depth stack.
+peekIndentation :: (Monad m) => ParsecIT s u m Int
+peekIndentation = do
+    stack <- _depth . snd <$> P.getState
+    when (null stack) $ fail "empty indentation depth stack"
+    return $ head stack
+
+-- |Pop the top of the depth stack and return the popped depth.
+popIndentation :: (Monad m) => ParsecIT s u m Int
+popIndentation = do
+    (u, s) <- P.getState
+    let stack = _depth s
+    when (null stack) $ fail "empty indentation depth stack"
+    P.putState (u, s { _depth = tail stack })
+    return $ head stack
+
+-- |Push to the top of the depth stack.
+pushIndentation :: (Monad m) => Int -> ParsecIT s u m ()
+pushIndentation n = do
+    (u, s) <- P.getState
+    let stack = _depth s
+    P.putState (u, s { _depth = n:stack })
