@@ -48,7 +48,7 @@ module Text.Luthor.Syntax (
     , uniPrint, uniPrintMinus
     , uniIdClass, uniIdClassMinus
     -- * Re-exports
-    , satisfy, P.anyChar
+    , satisfy, P.anyChar, P.oneOf, P.noneOf
     ) where
 
 import Data.Ratio

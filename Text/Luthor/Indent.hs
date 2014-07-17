@@ -8,6 +8,7 @@ module Text.Luthor.Indent (
     -- * Parse Indentation
     , mkWs
     , indent, nextline, dedent
+    , startIndent, endIndent
     -- * Read/Write Indentation State
     , isIndentEnabled
     , getIndentDepth
@@ -15,6 +16,8 @@ module Text.Luthor.Indent (
     -- * Re-exports and Overrides
     , module Text.Luthor
     , getState, putState, modifyState
+    --TODO manual push/pop indentation
+    --TODO configure with whitespace so the user needn't plop bigWs all over the place
     ) where
 
 import Control.Monad
@@ -33,10 +36,17 @@ data IndentState = IS { _policy :: IndentPolicy
 startIndent :: IndentPolicy -> IndentState
 startIndent policy = IS policy [0] True
 
+endIndent :: (Stream s m Char) => ParsecIT s u m ()
+endIndent = do
+    s <- snd <$> P.getState
+    if not (_enabled s) || null (_depth s) || _depth s == [0]
+        then return () else dedent *> endIndent
+
+
 -- |Type for Parsec parsers tracking indentation.
-type ParsecIT s u m a = ParsecT s (u, IndentState) m a
+type ParsecIT s u = ParsecT s (u, IndentState)
 -- |'ParsecIT' over the identity monad.
-type ParsecI s u a = Parsec s (u, IndentState) a
+type ParsecI s u = Parsec s (u, IndentState)
 
 {-| The most general way to run a parser. @runParserIT p state filePath input@
     runs parser @p@ on the input list of tokens @input@, obtained from source
@@ -69,7 +79,7 @@ indent = try $ do
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
     n' <- dentation policy
-    case n `compare` n' of
+    case n' `compare` n of
         LT -> unexpected "dedent"
         EQ -> unexpected "nextline"
         GT -> return ()
@@ -84,7 +94,7 @@ nextline = try $ do
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
     n' <- dentation policy
-    case n `compare` n' of
+    case n' `compare` n of
         LT -> unexpected "dedent"
         EQ -> return ()
         GT -> unexpected "indent"
@@ -97,7 +107,7 @@ dedent = try $ do
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
     (n', State rest pos (u, s)) <- lookAhead $ dentation policy <$$> (,) <*> P.getParserState
-    case n `compare` n' of
+    case n' `compare` n of
         LT -> return ()
         EQ -> unexpected "nextline"
         GT -> unexpected "indent"
@@ -164,9 +174,7 @@ withoutIndentation p = do
 mkWs :: (Stream s m Char) => [ParsecIT s u m ()] -> ParsecIT s u m ()
 mkWs ps = manyOf_ $ ps ++ [blankline]
     where
-    blankline = do
-        P.notFollowedBy P.eof
-        try $ lineBreak *> manyOf ps *> lookAhead lineBreak
+    blankline = try $ oneOf "\n\r" *> manyOf ps *> lookAhead lineBreak
 
 
 -- |Alternate version of Parsec's @getState@ suited for indentation-sensitive parsers.

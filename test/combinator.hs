@@ -13,7 +13,7 @@ main = do
         , ((char 'a' `P.sepBy` char ' ') *> optional (char ' ')) `fails` "a a "
         , ((char 'a' `sepBy` char ' ') *> optional (char ' ')) `matches` "a a "
         , (anyChar `P.manyTill` string "-->") `fails` "part1 -- part2-->"
-        , (anyChar `manyThru` string "-->") `matches` "part1 part2-->"
+        , (anyChar `manyThru` string "-->") `matches` "part1 -- part2-->"
         -- * Choices
         , (string "foo" <||> string "fly") `matches` "foo"
         , (string "foo" <||> string "fly") `matches` "fly"
