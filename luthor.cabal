@@ -25,6 +25,7 @@ bug-reports:         https://github.com/Zankoku-Okuno/luthor/issues
 category:            Text, Language
 build-type:          Simple
 cabal-version:       >=1.8
+extra-source-files:  docs/*.md, docs/*.hs
 
 library
   exposed-modules:    
@@ -33,7 +34,7 @@ library
     Text.Luthor.Combinator
     Text.Luthor.Syntax
     Text.Luthor.Indent
-  -- other-modules:       
+  other-modules:       
   build-depends:       base ==4.6.*,
                        mtl ==2.*,
                        parsec ==3.*

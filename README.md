@@ -21,8 +21,8 @@ symbol = (it <||> (:[]) <$> oneOf "+_") `notFollowedBy` it
 TODO comment parser, some number parsing, the list rule
 ```
 
-* [API Reference](https://hackage.haskell.org/package/luthogr)
-* [Documentation](http://zankoku-okuno.viewdocs.io/luthor/)
+* [Examples](http://zankoku-okuno.viewdocs.io/luthor/)
+* [API Reference](https://hackage.haskell.org/package/luthor)
 * [Issues](https://github.com/Zankoku-Okuno/luthor/issues)
 
 
@@ -40,7 +40,7 @@ Luthor is designed as an additional, transparent layer of tools built atop Parse
 Installation
 ------------
 
-You can install Luthor using cabal, either from hackage:
+You can install Luthor using cabal, either from Hackage:
 
 ```
 cabal install luthor
