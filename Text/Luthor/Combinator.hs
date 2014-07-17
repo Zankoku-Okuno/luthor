@@ -80,7 +80,6 @@ module Text.Luthor.Combinator (
     -- * Additional Data
     , (<?>), expect
     , withPosition, withPositionEnd, withPositions
-    , withState
     -- * Re-exports
     , try, (<|>), P.unexpected, void
     --FIXME I need to re-export a lot of crap, but maybe in Text.Luthor
@@ -132,6 +131,13 @@ dispatch ((canary, payload):rest) = do
     go <- not . isNothing <$> optional canary
     if go then payload else dispatch rest
 
+{-| Attempt all of the passed parsers under the current conditions and
+    return the value of the parser which makes it furthest into the
+    input stream (and updates the parser's internals as if that were the only
+    parser parsed).
+
+    >longestOf [string "do", string "don't"]
+-}
 longestOf :: Stream s m t => [ParsecT s u m a] -> ParsecT s u m a
 longestOf [] = P.choice []
 longestOf ps = do
@@ -182,9 +188,11 @@ atMost m p | m <= 0    = pure []
 manyNM :: Stream s m t => Int -> Int -> ParsecT s u m a -> ParsecT s u m [a]
 manyNM l m p = P.count l p <$$> (++) <*> atMost (m-l) p
 
+-- |Parse /zero/ or more of any mix of the passed parsers.
 manyOf :: Stream s m t => [ParsecT s u m a] -> ParsecT s u m [a]
 manyOf = P.many . choice
 
+-- |As 'manyOf', but ignoring the results.
 manyOf_ :: Stream s m t => [ParsecT s u m a] -> ParsecT s u m ()
 manyOf_ = many_ . choice
 
@@ -262,84 +270,99 @@ sepBy1 p sep = p <$$> (:) <*> (many . try $ sep *> p)
 sepEndBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 sepEndBy p sep = option [] $ sepEndBy1 p sep
 
--- | @sepEndBy1 p sep@ parses /one/ or more occurrences of @p@,
--- separated and optionally ended by @sep@. Returns a list of values
--- returned by @p@. 
+{-| @sepEndBy1 p sep@ parses /one/ or more occurrences of @p@,
+    separated and optionally ended by @sep@. Returns a list of values
+    returned by @p@.
+-}
 sepEndBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 sepEndBy1 p sep = p <$$> (:) <*> option [] (sep *> sepEndBy p sep)
 
--- | @endBy p sep@ parses /zero/ or more occurrences of @p@, seperated
--- and ended by @sep@. Returns a list of values returned by @p@.
---
--- >   cStatements  = cStatement `endBy` semi
+{-| @endBy p sep@ parses /zero/ or more occurrences of @p@, seperated
+    and ended by @sep@. Returns a list of values returned by @p@.
+    
+    >   cStatements  = cStatement `endBy` semi
+-}
 endBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 endBy p sep = P.many $ p <* sep
 
--- | @endBy1 p sep@ parses /one/ or more occurrences of @p@, seperated
--- and ended by @sep@. Returns a list of values returned by @p@. 
+{-| @endBy1 p sep@ parses /one/ or more occurrences of @p@, seperated
+    and ended by @sep@. Returns a list of values returned by @p@.
+-}
 endBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 endBy1 p sep = P.many1 $ p <* sep
 
+{-| @sepAroundBy p sep@ parses /zero/ or more occurrences of @p@,
+    separated and optionally starting with and ended by @sep@. Returns
+    a list of values returned by @p@. 
+-}
 sepAroundBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 sepAroundBy p sep = option [] $ sepAroundBy1 p sep
 
+{-| @sepAroundBy1 p sep@ parses /one/ or more occurrences of @p@,
+    separated and optionally starting with and ended by @sep@. Returns
+    a list of values returned by @p@. 
+-}
 sepAroundBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 sepAroundBy1 p sep = optional_ sep *> sepEndBy1 p sep
 
 
--- | @chainl p op x@ parses /zero/ or more occurrences of @p@,
--- separated by @op@. Returns a value obtained by a /left/ associative
--- application of all functions returned by @op@ to the values returned
--- by @p@. If there are zero occurrences of @p@, the value @x@ is
--- returned.
---
--- C.f. 'chainr'
+{-| @chainl p op x@ parses /zero/ or more occurrences of @p@,
+    separated by @op@. Returns a value obtained by a /left/ associative
+    application of all functions returned by @op@ to the values returned
+    by @p@. If there are zero occurrences of @p@, the value @x@ is
+    returned.
+    
+    C.f. 'chainr'
+-}
 chainl :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> a -> ParsecT s u m a
 chainl p op zero = chainl1 p op <|> pure zero
 
--- | @chainl1 p op x@ parses /one/ or more occurrences of @p@,
--- separated by @op@ Returns a value obtained by a /left/ associative
--- application of all functions returned by @op@ to the values returned
--- by @p@. This parser can for example be used to eliminate left
--- recursion which typically occurs in expression grammars.
---
--- >  expr    = term   `chainl1` mulop
--- >  term    = factor `chainl1` addop
--- >  factor  = parens expr <|> integer
--- >
--- >  mulop   =   do{ symbol "*"; return (*)   }
--- >          <|> do{ symbol "/"; return (div) }
--- >
--- >  addop   =   do{ symbol "+"; return (+) }
--- >          <|> do{ symbol "-"; return (-) }
---
--- C.f. 'chainr1'
+{-| @chainl1 p op x@ parses /one/ or more occurrences of @p@,
+    separated by @op@ Returns a value obtained by a /left/ associative
+    application of all functions returned by @op@ to the values returned
+    by @p@. This parser can for example be used to eliminate left
+    recursion which typically occurs in expression grammars.
+    
+    >  expr    = term   `chainl1` mulop
+    >  term    = factor `chainl1` addop
+    >  factor  = parens expr <|> integer
+    >
+    >  mulop   =   do{ symbol "*"; return (*)   }
+    >          <|> do{ symbol "/"; return (div) }
+    >
+    >  addop   =   do{ symbol "+"; return (+) }
+    >          <|> do{ symbol "-"; return (-) }
+    
+    C.f. 'chainr1'
+-}
 chainl1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> ParsecT s u m a
 chainl1 p op = p >>= rest
     where rest x = (op <*> pure x <*> p >>= rest) <||> pure x
 
--- | @chainr p op x@ parses /zero/ or more occurrences of @p@,
--- separated by @op@ Returns a value obtained by a /right/ associative
--- application of all functions returned by @op@ to the values returned
--- by @p@. If there are no occurrences of @p@, the value @x@ is
--- returned.
---
--- C.f. 'chainl'
+{-| @chainr p op x@ parses /zero/ or more occurrences of @p@,
+    separated by @op@ Returns a value obtained by a /right/ associative
+    application of all functions returned by @op@ to the values returned
+    by @p@. If there are no occurrences of @p@, the value @x@ is
+    returned.
+    
+    C.f. 'chainl'
+-}
 chainr :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> a -> ParsecT s u m a
 chainr p op zero = chainr1 p op <|> pure zero
 
--- | @chainr1 p op x@ parses /one/ or more occurrences of @p@,
--- separated by @op@ Returns a value obtained by a /right/ associative
--- application of all functions returned by @op@ to the values returned
--- by @p@.
---
--- C.f. 'chainl1'
+{-| @chainr1 p op x@ parses /one/ or more occurrences of @p@,
+    separated by @op@ Returns a value obtained by a /right/ associative
+    application of all functions returned by @op@ to the values returned
+    by @p@.
+    
+    C.f. 'chainl1'
+-}
 chainr1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> ParsecT s u m a
 chainr1 p op = p >>= rest
     where rest x = op <*> pure x <*> (p >>= rest) <||> pure x
 
 
--- | @lookAhead p@ parses @p@ without consuming any input, even if @p@ fails.
+{-| @lookAhead p@ parses @p@ without consuming any input, even if @p@ fails. -}
 lookAhead :: Stream s m t => ParsecT s u m a -> ParsecT s u m a
 lookAhead = P.lookAhead . try
 
@@ -358,9 +381,11 @@ lookAhead = P.lookAhead . try
 notFollowedBy :: (Stream s m t, Show trash) => ParsecT s u m a -> ParsecT s u m trash -> ParsecT s u m a
 notFollowedBy p la = try $ p <* P.notFollowedBy la
 
+-- |Returns 'True' if there is no input left, 'False' if there is.
 atEndOfInput :: (Stream s m t, Show t) => ParsecT s u m Bool
 atEndOfInput = option False $ True <$ endOfInput
 
+-- |Succeed only when at the end of the input stream.
 endOfInput :: (Stream s m t, Show t) => ParsecT s u m ()
 endOfInput = P.eof
 
@@ -369,14 +394,20 @@ endOfInput = P.eof
 expect :: Stream s m t => String -> ParsecT s u m a -> ParsecT s u m a
 expect = flip (<?>)
 
+{-| Annotate the return value of the passed parser with the position
+    just before parsing.
+-}
 withPosition :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a, SourcePos)
 withPosition p = flip (,) <$> P.getPosition <*> p
 
+{-| Annotate the return value of the passed parser with the position
+    just after parsing.
+-}
 withPositionEnd :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a, SourcePos)
 withPositionEnd p = (,) <$> p <*> P.getPosition
 
+{-| Annotate the return value of the passed parser with the position
+    just before and after parsing respectively.
+-}
 withPositions :: Stream s m t => ParsecT s u m a -> ParsecT s u m (SourcePos, a, SourcePos)
 withPositions p = (,,) <$> P.getPosition <*> p <*> P.getPosition
-
-withState :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a, u)
-withState p = (,) <$> p <*> P.getState

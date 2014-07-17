@@ -305,6 +305,9 @@ numDenominator base = try $ do
 numOptSign :: (Stream s m Char) => ParsecT s u m Integer
 numOptSign = P.option 1 numSign
 
+{-| Parse an optional sign (as 'numOptSign'), then a natural number
+    of the specified base (as in 'numNatural').
+-}
 numInteger :: (Stream s m Char) => Int -> ParsecT s u m Integer
 numInteger base = numOptSign <$$> (*) <*> numNatural base
 

@@ -1,3 +1,12 @@
+{-| Provides a set of tools built atop Parsec's user state mechanism
+    to aid in building indentation-sensitive parsers. Also redefines some
+    familiar functions to hide the state tracking from consideration.
+
+    The indentation state tracks a stack of indentation depth. It is configured
+    to know about what characters are allowed as indentation and how to count them.
+    Indentation may also be enabled/disabled, such as when parsing between parens
+    or braces.
+-}
 {-# LANGUAGE FlexibleContexts #-}
 module Text.Luthor.Indent (
     -- * Types
@@ -33,9 +42,15 @@ data IndentState = IS { _policy :: IndentPolicy
                       , _depth :: [Int]
                       , _enabled :: Bool
                       }
+{-| Create a starting 'IndentationState': indentation is initially
+    enabled and the indentation depth stack starts with @[0]@.
+-}
 startIndent :: IndentPolicy -> IndentState
 startIndent policy = IS policy [0] True
 
+{-| Succeed only when the indentation stack is suitably empty:
+    is empty or equal to @[0]@, or if indentation is disabled.
+-}
 endIndent :: (Stream s m Char) => ParsecIT s u m ()
 endIndent = do
     s <- snd <$> P.getState
