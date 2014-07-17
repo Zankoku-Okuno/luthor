@@ -29,13 +29,9 @@
     * In Parsec, @string \"aaa\" \<|\> string \"aa\"@, will fail on input @\"aa\"@.
         Using this module's '<||>' will succeed.
 
-    * In Parsec, @char 'a' \`sepBy\` char ' ' *> optional (char ' ') *> eof@ will fail on input
+    * In Parsec, @(char \'a\' \`sepBy\` char \' \') *> optional (char \' \') *> eof@ will fail on input
         @\"a a \"@. Using this module's 'sepBy' will succeed. Similar results hold for 'sepBy1',
         'chainl', 'chainl1', 'chainr', and 'chainr1'.
-
-    * In Parsec, @lookAhead (many1 digit) *> many1 digit@ will fail on input such as @\"123\"@.
-        Similarly, @notFollowedBy (string \"letter\") *> string \"let\"@ will fail on @\"let\"@.
-        Using this module's 'lookAhead' or 'notFollowedBy' will succeed in the respective cases.
 
     * In Parsec, @anyChar \`manyTill\` string \"-->\" *> eof@ will fail on input
         @\"part1 -- part2-->\"@. Using this module's 'manyThru' will succeed with the same semantics.
@@ -232,7 +228,7 @@ manyTill p end = p `P.manyTill` lookAhead end
     on failure.
 -}
 manyThru :: Stream s m t => ParsecT s u m a -> ParsecT s u m end -> ParsecT s u m [a]
-manyThru = P.manyTill
+manyThru p end = p `P.manyTill` try end
 
 {-| @chomp p x@ will parse @p@, then throw away a subsequent
     parse by @x@ provided it succeeds.

@@ -3,14 +3,19 @@ import System.Exit
 
 import Text.Luthor
 import qualified Text.Parsec as P
-import Text.Parsec.Char (string, char, anyChar)
+import Text.Parsec.Char (string, char, anyChar, digit)
 
 main = do
     results <- sequence [ 
-        --check my examples
-        --TODO
+        --Examples in docs
+          (string "aaa" <|> string "aa") `fails` "aa"
+        , (string "aaa" <||> string "aa") `matches` "aa"
+        , ((char 'a' `P.sepBy` char ' ') *> optional (char ' ')) `fails` "a a "
+        , ((char 'a' `sepBy` char ' ') *> optional (char ' ')) `matches` "a a "
+        , (anyChar `P.manyTill` string "-->") `fails` "part1 -- part2-->"
+        , (anyChar `manyThru` string "-->") `matches` "part1 part2-->"
         -- * Choices
-          (string "foo" <||> string "fly") `matches` "foo"
+        , (string "foo" <||> string "fly") `matches` "foo"
         , (string "foo" <||> string "fly") `matches` "fly"
         , choice [string "foo", string "bar", string "fly"] `matches` "fly"
         , dispatch [(string "foo", string "bar"), (string "fly", string "wheel")] `matches` "foobar"
@@ -33,10 +38,11 @@ main = do
         , manyNM 2 4 (char 'a') `fails` "aaaaa"
         -- * Common Structures
         -- ** Terminate
-        , ((anyChar `manyTill` (string "\n\r")) *> string "\n\r") `matches` "sdga;on\n\r"
-        , ((anyChar `manyTill` (string "\n\r"))) `fails` "sdga;on\n\r"
-        , ((anyChar `manyThru` (string "\n\r")) *> string "\n\r") `fails` "sdga;on\n\r"
-        , ((anyChar `manyThru` (string "\n\r"))) `matches` "sdga;on\n\r"
+        , ((anyChar `manyTill` (string "\n\r")) *> string "\n\r") `matches` "sdg\na;on\n\r"
+        , ((anyChar `manyTill` (string "\n\r"))) `fails` "sdg\na;on\n\r"
+        , ((anyChar `manyThru` (string "\n\r")) *> string "\n\r") `fails` "sdg\na;on\n\r"
+        , ((anyChar `manyThru` (string "\n\r"))) `matches` "sdg\na;on\n\r"
+        , ((anyChar `manyThru` (string "\n\r"))) `fails` "sdg\na;on"
         , (string "foo" `chomp` char '\n') `matches` "foo\n"
         , (string "foo" `chomp` char '\n') `matches` "foo"
         -- ** Surround
