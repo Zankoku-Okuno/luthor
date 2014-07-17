@@ -4,6 +4,9 @@
 
     The indentation state tracks a stack of indentation depth. It is configured
     to know about what characters are allowed as indentation and how to count them.
+    It should also be configured with a list of linear whitespace parsers (this
+    including comments). With those, the algorithms in this module will be able to
+    skip over blank lines.
     Indentation may also be enabled/disabled, such as when parsing between parens
     or braces.
 -}
@@ -15,7 +18,7 @@ module Text.Luthor.Indent (
     -- * Run Indentation-sensitive Parsers
     , runParserIT, runParserI, runPIT, runPI
     -- * Parse Indentation
-    , mkWs
+    , plusBlankline
     , indent, nextline, dedent
     , startIndent, endIndent
     -- * Read/Write Indentation State
@@ -23,10 +26,10 @@ module Text.Luthor.Indent (
     , getIndentDepth
     , withIndentation, withoutIndentation
     -- * Re-exports and Overrides
+    --FIXME don't export combinators
     , module Text.Luthor
     , getState, putState, modifyState
     --TODO manual push/pop indentation
-    --TODO configure with whitespace so the user needn't plop bigWs all over the place
     ) where
 
 import Control.Monad
@@ -38,15 +41,16 @@ import qualified Text.Parsec.Combinator as P
 
 
 -- |Opaque type tracking indentation state.
-data IndentState = IS { _policy :: IndentPolicy
-                      , _depth :: [Int]
-                      , _enabled :: Bool
-                      }
+data IndentState s u m = IS { _policy :: IndentPolicy
+                            , _depth :: [Int]
+                            , _enabled :: Bool
+                            , _ws :: ParsecIT s u m ()
+                            }
 {-| Create a starting 'IndentationState': indentation is initially
     enabled and the indentation depth stack starts with @[0]@.
 -}
-startIndent :: IndentPolicy -> IndentState
-startIndent policy = IS policy [0] True
+startIndent :: (Stream s m Char) => IndentPolicy -> [ParsecIT s u m ()] -> IndentState s u m
+startIndent policy ws = IS policy [0] True (plusBlankline ws)
 
 {-| Succeed only when the indentation stack is suitably empty:
     is empty or equal to @[0]@, or if indentation is disabled.
@@ -59,9 +63,9 @@ endIndent = do
 
 
 -- |Type for Parsec parsers tracking indentation.
-type ParsecIT s u = ParsecT s (u, IndentState)
+type ParsecIT s u m = ParsecT s (u, IndentState s u m) m
 -- |'ParsecIT' over the identity monad.
-type ParsecI s u = Parsec s (u, IndentState)
+type ParsecI s u = Parsec s (u, IndentState s u Identity)
 
 {-| The most general way to run a parser. @runParserIT p state filePath input@
     runs parser @p@ on the input list of tokens @input@, obtained from source
@@ -71,19 +75,39 @@ type ParsecI s u = Parsec s (u, IndentState)
     Returns a computation in the underlying monad @m@ that return either a
     @ParseError@ ('Left') or a value of type @a@ ('Right'). 
 -}
-runParserIT :: Stream s m t => ParsecIT s u m a -> IndentPolicy -> u -> SourceName -> s -> m (Either ParseError a)
-runParserIT p policy u = runParserT p (u, startIndent policy)
+runParserIT :: Stream s m Char
+            => ParsecIT s u m a -- ^ the parser to run
+            -> IndentPolicy -- ^ what characters count as leading space and how they should be counted
+            -> [ParsecIT s u m ()] -- ^ a list of linear whitespace parsers
+            -> u -- ^ an initial user state
+            -> SourceName -- ^ name of the source file from which the input was gathered
+            -> s -- ^ input stream
+            -> m (Either ParseError a)
+runParserIT p policy ws u = runParserT p (u, startIndent policy ws)
 
 {-| As 'runParserIT', but over the Identity monad. -}
-runParserI :: Stream s Identity t => ParsecI s u a -> IndentPolicy -> u -> SourceName -> s -> Either ParseError a
-runParserI p policy u = runParser p (u, startIndent policy)
+runParserI :: Stream s Identity Char
+           => ParsecI s u a -- ^ the parser to run
+           -> IndentPolicy -- ^ what characters count as leading space and how they should be counted
+           -> [ParsecI s u ()] -- ^ a list of linear whitespace parsers
+           -> u -- ^ an initial user state
+           -> SourceName -- ^ name of the source file from which the input was gathered
+           -> s -- ^ input stream
+           -> Either ParseError a
+runParserI p policy ws u = runParser p (u, startIndent policy ws)
 
 -- |Shortcut for 'runParserIT'
-runPIT :: Stream s m t => ParsecIT s u m a -> IndentPolicy -> u -> SourceName -> s -> m (Either ParseError a)
+runPIT :: Stream s m Char
+       => ParsecIT s u m a
+       -> IndentPolicy -> [ParsecIT s u m ()]
+       -> u -> SourceName -> s -> m (Either ParseError a)
 runPIT = runParserIT
 
 -- |Shortcut for 'runParserI'
-runPI :: Stream s Identity t => ParsecI s u a -> IndentPolicy -> u -> SourceName -> s -> Either ParseError a
+runPI :: Stream s Identity Char
+      => ParsecI s u a
+      -> IndentPolicy -> [ParsecI s u ()]
+      -> u -> SourceName -> s -> Either ParseError a
 runPI = runParserI
 
 
@@ -91,6 +115,7 @@ runPI = runParserI
 --  the current indentation level. Pushes the indentation depth stack.
 indent :: (Stream s m Char) => ParsecIT s u m ()
 indent = try $ do
+    () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
     n' <- dentation policy
@@ -106,6 +131,7 @@ indent = try $ do
 --  the current indentation level.
 nextline :: (Stream s m Char) => ParsecIT s u m ()
 nextline = try $ do
+    () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
     n' <- dentation policy
@@ -119,6 +145,7 @@ nextline = try $ do
 --  If more dedents could be parsed, then no input is consumed.
 dedent :: (Stream s m Char) => ParsecIT s u m ()
 dedent = try $ do
+    () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
     (n', State rest pos (u, s)) <- lookAhead $ dentation policy <$$> (,) <*> P.getParserState
@@ -186,8 +213,8 @@ withoutIndentation p = do
     parsers for comments as well. Line comments shouldn't eat the
     newline; the 'lineComment' combinator is acceptable.
 -}
-mkWs :: (Stream s m Char) => [ParsecIT s u m ()] -> ParsecIT s u m ()
-mkWs ps = manyOf_ $ ps ++ [blankline]
+plusBlankline :: (Stream s m Char) => [ParsecIT s u m ()] -> ParsecIT s u m ()
+plusBlankline ps = manyOf_ $ ps ++ [blankline]
     where
     blankline = try $ oneOf "\n\r" *> manyOf ps *> lookAhead lineBreak
 

@@ -12,10 +12,10 @@ data Lisp = Atom String | List [Lisp]
     deriving (Eq, Show)
 
 file :: Parser [Lisp]
-file = between2 bigWs (expr `sepBy` (bigWs *> nextline))
+file = between2 (optional $ plusBlankline wss) (expr `sepBy` nextline)
 
 expr :: Parser Lisp
-expr = ident <||> parenExpr <||> indented
+expr = ident <||> parenExpr <||> indentExpr
 
 ident :: Parser Lisp
 ident = Atom <$> charClass "a-zA-Z0-9_-" `many1Not` charClass "0-9"
@@ -23,16 +23,14 @@ ident = Atom <$> charClass "a-zA-Z0-9_-" `many1Not` charClass "0-9"
 parenExpr :: Parser Lisp
 parenExpr = inParens bareExpr
 
-indented :: Parser Lisp
-indented = do
-    bigWs *> indent
-    results <- bareExpr `sepBy1` (bigWs *> nextline)
-    bigWs *> dedent
-    return $ List results
+indentExpr :: Parser Lisp
+indentExpr = List <$> between indent dedent (bareExpr `sepBy1` nextline)
 
-ws, bigWs :: Parser ()
-ws = choice [void lws, void $ lineComment ";"]
-bigWs = mkWs [void lws, void $ lineComment ";"]
+wss :: [Parser ()]
+wss = [void lws, void $ lineComment ";"]
+
+ws :: Parser ()
+ws = many1_ $ choice wss
 
 bareExpr :: Parser Lisp
 bareExpr = List <$> expr `sepAroundBy1` optional ws
@@ -54,7 +52,7 @@ main = do
 
 
 type Parser = ParsecI String ()
-run p = runPI p (DontMix " ") () ""
+run p = runPI p (DontMix " ") wss () ""
 
 test :: Bool -> Parser a -> String -> IO Bool
 test expect p input = do
