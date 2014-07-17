@@ -27,8 +27,8 @@ module Text.Luthor.Syntax (
     -- ** Punctuation
     , inParens, inBrackets, inBraces, inAngles
     -- ** Number Parts
-    , numSign, numBase, numNatural, numMantissa, numExponent, numDenominator
-    , numOptSign
+    , numSign, numBase, numNatural, numAfterPoint, numDenominator
+    , numOptSign, numInteger
     , xDigit, stringToInteger, stringToMantissa
     -- ** Numbers
     , integer, rational, scientific
@@ -47,6 +47,8 @@ module Text.Luthor.Syntax (
     , charClass
     , uniPrint, uniPrintMinus
     , uniIdClass, uniIdClassMinus
+    -- * Re-exports
+    , satisfy, P.anyChar
     ) where
 
 import Data.Ratio
@@ -109,31 +111,31 @@ ctl = satisfy _asciiControl
 
 -- |A single printable ASCII character, as the `TEXT` rule from RFC2616 §2.2 
 asciiText :: (Stream s m Char) => ParsecT s u m Char
-asciiText = satisfy (\c -> '\32' <= c && c <= '\126')
+asciiText = expect "printable ascii character" $ satisfy (\c -> '\32' <= c && c <= '\126')
 
 -- |A single printable unicode character, a generalization of 'text'. See 'uniPrint'.
 uniText :: (Stream s m Char) => ParsecT s u m Char
-uniText = satisfy uniPrint
+uniText = expect "printable unicode character" $ satisfy uniPrint
 
 
 -- |A carriage return (ASCII 13)
 cr :: (Stream s m Char) => ParsecT s u m ()
-cr = void $ char '\r'
+cr = expect "carraige return" . void $ char '\r'
 -- |A line feed (ASCII 10)
 lf :: (Stream s m Char) => ParsecT s u m ()
-lf = void $ char '\n'
+lf = expect "linefeed" . void $ char '\n'
 -- |A space (ASCII 32)
 sp :: (Stream s m Char) => ParsecT s u m ()
-sp = void $ char ' '
+sp = expect "space" . void $ char ' '
 -- |A horizonal tab (ASCII 9)
 ht :: (Stream s m Char) => ParsecT s u m ()
-ht = void $ char '\t'
+ht = expect "tab" . void $ char '\t'
 -- |A single quote
 sq :: (Stream s m Char) => ParsecT s u m ()
-sq = void $ char '\''
+sq = expect "single quote" . void $ char '\''
 -- |A double quote
 dq :: (Stream s m Char) => ParsecT s u m ()
-dq = void $ char '\"'
+dq = expect "double quote" . void $ char '\"'
 -- |A colon (:)
 colon :: (Stream s m Char) => ParsecT s u m ()
 colon = void $ char ':'
@@ -241,7 +243,7 @@ many1Not :: (Stream s m Char)
            -> ParsecT s u m String
 many1Not allowed notAtFront = try $ do
     first <- satisfy $ \c -> allowed c && (not . notAtFront) c
-    rest <- many1 $ satisfy allowed
+    rest <- many $ satisfy allowed
     return (first:rest)
 
 {-| Parse a sigil character immediately followed by an identifier.
@@ -290,19 +292,8 @@ numNatural :: (Stream s m Char) => Int -> ParsecT s u m Integer
 numNatural base = stringToInteger base <$> xDigits base
 
 {-| Parse many digits in the passed base and return the appropriate ratio. -}
-numMantissa :: (Stream s m Char) => Int -> ParsecT s u m Rational
-numMantissa base = stringToMantissa base <$> xDigits base
-
-{-| In base 10, parse an 'e' and a decimal integer.
-    In base 16, parse an 'h' and a hexadecimal integer.
--}
-numExponent :: (Stream s m Char) => Int -> ParsecT s u m Integer
-numExponent base = try $ case base of
-    10 -> charI 'e' *> body
-    16 -> charI 'h' *> body
-    _ -> fail "unrecognized base in Text.Luthor.Syntax.Parsec.numExponent (accepts only 10 or 16)"
-    where
-    body = numOptSign <$$> (*) <*> numNatural base
+numAfterPoint :: (Stream s m Char) => Int -> ParsecT s u m Rational
+numAfterPoint base = stringToMantissa base <$> xDigits base
 
 {-| Parse a natural in the passed base and return its reciprocal. -}
 numDenominator :: (Stream s m Char) => Int -> ParsecT s u m Rational
@@ -313,6 +304,9 @@ numDenominator base = try $ do
 -- |Optional sign as 'numSign', defaults to positive.
 numOptSign :: (Stream s m Char) => ParsecT s u m Integer
 numOptSign = P.option 1 numSign
+
+numInteger :: (Stream s m Char) => Int -> ParsecT s u m Integer
+numInteger base = numOptSign <$$> (*) <*> numNatural base
 
 
 {-| Parse an integer: optional sign, then a number of digits.
@@ -342,9 +336,9 @@ rational = try $ do
     return $ sign * numer * denom
 
 {-| Parse a number in scientific notation: an optional sign, then
-    two sequences of digits separated by a 'dot', and finally an
-    optional exponent, which isan exponent letter, an optional sign
-    and finally one or more digits.
+    a radix mark, two sequences of digits separated by a 'dot', and
+    finally an optional exponent, which is an exponent letter, an
+    optional sign and finally one or more digits in the same base.
 
     Only bases 10 and 16 are supported, and the base of the exponent
     is the same as the base of the significand. In base ten, the
@@ -359,9 +353,13 @@ scientific = try $ do
     base <- option 10 $ 16 <$ stringI "0x"
     whole <- toRational <$> numNatural base
     dot
-    mantissa <- numMantissa base
-    multiplier <- (toRational base ^^) <$> numExponent base
-    return $ sign * (whole + mantissa) * multiplier
+    mantissa <- numAfterPoint base
+    exponent <- option 0 $ case base of
+        10 -> charI 'e' *> numInteger base
+        16 -> charI 'h' *> numInteger base
+        _ -> error "unsupported base in Text.Luthor.Syntax.scientific: only 10 and 16 allowed"
+    let timesExp = toRational base ^^ exponent
+    return $ sign * (whole + mantissa) * timesExp
 
 --TODO scientific notation allowing 0. and .0
 
@@ -442,16 +440,19 @@ uniEsc = loUniEsc <|> hiUniEsc
 sqString :: (Stream s m Char) => ParsecT s u m String
 sqString = between2 (char '\'') (P.many $ normal <|> escape)
     where
-    normal = satisfy $ uniPrintMinus (=='\'')
+    normal = satisfy (/='\'')
     escape = '\'' <$ "''"
 
 {-| Parse a double-quoted string with common backslash escape sequences.
     
     * We use 'letterEsc' with the passed table of contents.
+    
     * Also, 'decimalEsc', 'asciiEsc' and 'uniEsc' are allowed.
+    
     * Further, the @\\&@ stands for no character: it literally adds nothing
         to the string in which it appears, but it can be useful as in
-        @\\1270\\&@.
+        @\\127\\&0@.
+    
     * Finally, lines can be folded with a backslash-newline-backslash, ignoring
         any 'lws' between the newline and the second backslash. This is preferred
         over a simple backslash-newline, as it reduces any need to remember how
@@ -606,7 +607,7 @@ xDigit base = case base of
     8  -> P.octDigit
     10 -> digit
     16 -> P.hexDigit
-    _ -> error "unrecognized base in Text.Luthor.Syntax.Parsec.xDigit (accepts only 2, 8, 10, or 16)"
+    _ -> error "unrecognized base in Text.Luthor.Syntax.xDigit (accepts only 2, 8, 10, or 16)"
 
 xDigits :: (Stream s m Char) => Int -> ParsecT s u m String
 xDigits = many1 . xDigit

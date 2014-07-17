@@ -104,7 +104,7 @@ parses p input expect = do
     case run (p <* P.eof) input of
         Right val | val == expect -> return True
                   | otherwise -> do
-                        putErrLn $ "false positive on " ++ show input
+                        putErrLn $ "incorrect parse on " ++ show input
                         putErrLn $ "found " ++ show val
                         return False
         Left err -> do

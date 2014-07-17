@@ -82,7 +82,7 @@ module Text.Luthor.Combinator (
     , withPosition, withPositionEnd, withPositions
     , withState
     -- * Re-exports
-    , try, (<|>), P.unexpected
+    , try, (<|>), P.unexpected, void
     --FIXME I need to re-export a lot of crap, but maybe in Text.Luthor
     ) where
 
