@@ -40,11 +40,12 @@ main = do
     results <- sequence [
           expr `matches` "(a (b c ) d)"
         , expr `matches` "(a \n  b c \nd)"
-        , expr `matches` "(a \n  b c \n;; foo\n x y\nd)"
+        , expr `matches` "(a \n  b c \n;; foo\n  x y\nd)"
         , expr `matches` "(a \n  b c \n  \t \n\nd)"
+        , expr `fails` "(a\n  b\n c\nd)"
         , file `matches` "(a \n  b c \nd)\n  "
         , file `matches` "e"
-        , file `fails` "(a \n  b c \nd)\n  e"
+        , file `fails` "(a \n  b c  \nd)\n  e"
         , file `parses` ";;this is an empty file\n  ;;nothing to see here\n\n\n" $ []
         , file `matches` ("(a b c)" ++ concat (replicate 80 "\n;;comments!"))
         ]

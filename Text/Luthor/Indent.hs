@@ -189,6 +189,7 @@ _dedent dent = expect "dedent" . try $ do
         GT -> unexpected "indent"
     let depth' = tail $ _depth s
         s' = s { _depth = depth' }
+    when (n' `notElem` depth') $ fail "dedent has no corresponding indent"
     if null depth' || head depth' == n'
         then void $ P.setParserState (State rest pos (u, s'))
         else P.putState (u, s')
