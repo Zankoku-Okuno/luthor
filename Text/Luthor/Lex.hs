@@ -33,27 +33,32 @@
     'Lexeme', 'runLuthorT', 'lexeme', and 'satisfy'. The general structure of a
     Luthor-based parser is: 1) create a data type for 'Lexeme' payloads, 2) write your
     lexers and wrap them all in 'lexeme', 3) create parsers for each case of payload
-    using 'satisfy', 4) write your parsers and connect them with your lexers using 'runLuthorT'.
+    using 'unlex' and satisfy', 4) write your parsers and connect them with your lexers
+    using 'runLuthorT'.
 -}
 {-# LANGUAGE DeriveFunctor, FlexibleContexts #-}
 module Text.Luthor.Lex (
     -- * Basic Concepts
-      LexerT
+      LexT
     , LuthorT
     , Lexeme
     , runLuthorT
     -- ** Shortcuts
-    , Lexer, Luthor, runLuthor
+    , Lex, Luthor
+    , runLuthor
+    , LexIT, LexI, LuthorIT, LuthorI
+    , runLuthorIT, runLuthorI
     -- * Produce Lexemes
     , lexeme
     , ignore
     -- * Consume Lexemes
-    , satisfy
+    , unlex, satisfy
     , anyLexeme
     , endOfLexemes
     , isAtEnd
     ) where
 
+import Data.Maybe
 import Control.Monad
 import Control.Monad.Identity
 
@@ -62,12 +67,13 @@ import Text.Parsec.Pos
 import Text.Parsec.Prim
 import Text.Parsec.Combinator (eof)
 import Text.Luthor.Combinator
+import Text.Luthor.Indent (runPIT, runPI, ParsecIT, ParsecI, IndentState, IndentPolicy)
 
 
 {-| A lexer: producer of 'Lexeme's -}
-type LexerT s u m t = ParsecT s u m (Lexeme t)
+type LexT s u m t = ParsecT s u m (Lexeme t)
 {-| A parser: consumer of 'Lexeme's -}
-type LuthorT t u m a = ParsecT [Lexeme t] u m a
+type LuthorT t = ParsecT [Lexeme t]
 
 {-| The lexer and parser communicate using the 'Lexeme' type.
 
@@ -78,12 +84,76 @@ type LuthorT t u m a = ParsecT [Lexeme t] u m a
 -}
 data Lexeme a = Lexeme SourcePos a
               | EndOfLexemes SourcePos
-    deriving (Eq, Functor)
+    deriving (Eq, Functor, Show)
 
 -- |Synonym for lexers over the 'Identity' monad.
-type Lexer s u t = LexerT s u Identity t
+type Lex s u a = LexT s u Identity a
 -- |Synonym for parsers over the 'Identity' monad.
-type Luthor s u t = LuthorT s u Identity t
+type Luthor s u = LuthorT s u Identity
+
+type LexIT s u m a = LexT s (u, IndentState s u m) m a
+type LexI s u a = LexIT s u Identity a
+
+type LuthorIT s u m = LuthorT s (u, IndentState s u m) m
+type LuthorI s u = LuthorIT s u Identity
+
+
+{-| Connect and run a lexer and parser together. -}
+runLuthorT :: (Monad m, Stream s m x, Stream [Lexeme t] m y, Show x)
+           => ParsecT s u m [Lexeme t] -- ^ lexer: transform raw input stream into many tokens
+           -> LuthorT t u m a -- ^ parser: transform token stream into parsed data
+           -> u
+           -> SourceName
+           -> s
+           -> m (Either ParseError a)
+runLuthorT lexer parser s source input = do
+    e_lexResult <- runPT (_wrap lexer) s source input
+    case e_lexResult of
+        Left err -> return $ Left err
+        Right (input', s') -> runPT parser s' source input'
+
+{-| As 'runLuthorT' in the 'Identity' monad. -}
+runLuthor :: (Stream s Identity x, Stream [Lexeme t] Identity y, Show x)
+          => Parsec s u [Lexeme t] -- ^ lexer: transform raw input stream into many tokens
+          -> Luthor t u a -- ^ parser: transform token stream into parsed data
+          -> u
+          -> SourceName
+          -> s
+          -> Either ParseError a
+runLuthor lexer parser s source input =
+    case runP (_wrap lexer) s source input of
+        Left err -> Left err
+        Right (input', s') -> runP parser s' source input'
+
+runLuthorIT :: (Monad m, Stream s m Char, Stream [Lexeme t] m y)
+            => ParsecIT s u m [Lexeme t] -- ^ lexer: transform raw input stream into many tokens
+            -> LuthorT t u m a -- ^ parser: transform token stream into parsed data
+            -> IndentPolicy -- ^ what characters count as leading space and how they should be counted
+            -> [ParsecIT s u m ()] -- ^ a list of linear whitespace parsers
+            -> u
+            -> SourceName
+            -> s
+            -> m (Either ParseError a)
+runLuthorIT lexer parser policy ws u source input = do
+    e_lexResult <- runPIT (_wrap lexer) policy ws u source input
+    case e_lexResult of
+        Left err -> return $ Left err
+        Right (input', (u', _)) -> runPT parser u' source input'
+
+
+runLuthorI :: (Stream s Identity Char, Stream [Lexeme t] Identity y)
+           => ParsecI s u [Lexeme t] -- ^ lexer: transform raw input stream into many tokens
+           -> Luthor t u a -- ^ parser: transform token stream into parsed data
+           -> IndentPolicy -- ^ what characters count as leading space and how they should be counted
+           -> [ParsecI s u ()] -- ^ a list of linear whitespace parsers
+           -> u
+           -> SourceName
+           -> s
+           -> Either ParseError a
+runLuthorI lexer parser policy ws u source input =
+    case runPI (_wrap lexer) policy ws u source input of
+        Left err -> Left err
+        Right (input', (u', _)) -> runP parser u' source input'
 
 
 {-| Wrap a normal parser into a parser for a 'Lexeme'.
@@ -109,32 +179,6 @@ ignore p = setInput =<< filter p' <$> getInput
     p' (Lexeme _ x) = not $ p x
     p' (EndOfLexemes _) = True
 
-{-| Connect and run a lexer and parser together. -}
-runLuthorT :: (Monad m, Stream s m x, Stream [Lexeme t] m y, Show x)
-           => LexerT s u m t
-           -> LuthorT t u m a
-           -> u
-           -> SourceName
-           -> s
-           -> m (Either ParseError a)
-runLuthorT lexer parser s source input = do
-        e_lexResult <- runPT (_wrap lexer) s source input
-        case e_lexResult of
-            Left err -> return $ Left err
-            Right (input', s') -> runPT parser s' source input'
-
-{-| As 'runLuthorT' in the 'Identity' monad. -}
-runLuthor :: (Stream s Identity x, Stream [Lexeme t] Identity y, Show x)
-          => Lexer s u t
-          -> Luthor t u a
-          -> u
-          -> SourceName
-          -> s
-          -> Either ParseError a
-runLuthor lexer parser s source input =
-    case runP (_wrap lexer) s source input of
-        Left err -> Left err
-        Right (input', s') -> runP parser s' source input'
 
 
 {-| Obtain a lexeme from the stream only if it satisfies the passed predicate.
@@ -149,6 +193,14 @@ satisfy :: (Show a, Stream [Lexeme a] m (Lexeme a))
 satisfy p = tokenPrim _lexShow _lexUpdatePos _lexCheck
     where
     _lexCheck (Lexeme _ x) | p x = Just x
+    _lexCheck _ = Nothing
+
+unlex :: (Show a, Stream [Lexeme a] m (Lexeme a)) => (a -> Maybe b) -> LuthorT a u m b
+unlex f = fromJust . f <$> tokenPrim _lexShow _lexUpdatePos _lexCheck
+    where
+    _lexCheck (Lexeme _ x) = case f x of
+        Just _ -> Just x
+        Nothing -> Nothing
     _lexCheck _ = Nothing
 
 {-| Obtain a 'Lexeme' payload. Only fails at the end of the lexeme stream. -}
@@ -193,9 +245,9 @@ _lexPos :: Lexeme a -> SourcePos
 _lexPos (Lexeme pos _) = pos
 _lexPos (EndOfLexemes pos) = pos
 
-_wrap :: (Monad m, Stream s m t, Show t) => LexerT s u m a -> ParsecT s u m ([Lexeme a], u)
+_wrap :: (Monad m, Stream s m t, Show t) => ParsecT s u m [Lexeme a] -> ParsecT s u m ([Lexeme a], u)
 _wrap lexer = do
-    result <- many lexer
+    result <- lexer
     end <- EndOfLexemes <$> getPosition <* eof
     s' <- getState
     return (result ++ [end], s')

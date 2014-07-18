@@ -105,14 +105,14 @@ main = do
         , nestingComment "{-" "-}" `matches` "{-asf{-saf-}fa-}"
         , nestingComment "{-" "-}" `matches` "{-{-{-{--}-}-}-}"
         -- * Character Classes
-        , many (satisfy (charClass "aeiou")) `matches` "eaiou"
-        , many (satisfy (charClass "-aeiou")) `matches` "ao-eiu"
-        , many (satisfy (charClass "aeiou-")) `matches` "ao-eiu"
-        , many (satisfy (charClass "-")) `matches` "---"
-        , many (satisfy (charClass "^asf")) `fails` "db32tq\955dfbh"
-        , many (satisfy (charClass "^-asf")) `fails` "-"
-        , many (satisfy (charClass "^asf-")) `fails` "-"
-        , many (satisfy (charClass "^-")) `fails` "-"
+        , many (aChar (charClass "aeiou")) `matches` "eaiou"
+        , many (aChar (charClass "-aeiou")) `matches` "ao-eiu"
+        , many (aChar (charClass "aeiou-")) `matches` "ao-eiu"
+        , many (aChar (charClass "-")) `matches` "---"
+        , many (aChar (charClass "^asf")) `fails` "db32tq\955dfbh"
+        , many (aChar (charClass "^-asf")) `fails` "-"
+        , many (aChar (charClass "^asf-")) `fails` "-"
+        , many (aChar (charClass "^-")) `fails` "-"
         ]
     if id `all` results then exitSuccess else exitFailure
 

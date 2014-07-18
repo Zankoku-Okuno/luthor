@@ -20,6 +20,7 @@ module Text.Luthor.Syntax (
     -- * Programming Idioms
     -- ** Whitespace
     , lws, crlf, lineBreak
+    , bsnl, bsnlwsbs
     , IndentPolicy(..), dentation
     -- ** Identifiers
     , many1Not
@@ -48,7 +49,7 @@ module Text.Luthor.Syntax (
     , uniPrint, uniPrintMinus
     , uniIdClass, uniIdClassMinus
     -- * Re-exports
-    , satisfy, P.anyChar, P.oneOf, P.noneOf
+    , aChar, P.anyChar, P.oneOf, P.noneOf
     ) where
 
 import Data.Ratio
@@ -513,6 +514,9 @@ nestingComment start end = do
     inner = nestingComment start end >>= \body -> return (start ++ body ++ end)
     text = P.anyChar `manyTill` (string start <|> string end)
 
+
+aChar :: (Stream s m Char) => (Char -> Bool) -> ParsecT s u m Char
+aChar = satisfy
 
 {-| Match any character in a set.
     

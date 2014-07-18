@@ -25,7 +25,7 @@ bug-reports:         https://github.com/Zankoku-Okuno/luthor/issues
 category:            Text, Language
 build-type:          Simple
 cabal-version:       >=1.8
-extra-source-files:  docs/*.md, docs/*.hs
+extra-source-files:  docs/*.md, docs/*.hs, docs/*.l
 
 library
   exposed-modules:    

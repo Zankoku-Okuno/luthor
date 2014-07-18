@@ -34,7 +34,7 @@ Luthor is structured as several independent tools which may be used individually
 * [Indentation](indent.md)
 * [Building Lexers](lex.md)
 
-There's also an [extended example](lisp.hs) of a Lisp parser.
+There's also an [extended example](lisp.md) of a Lisp parser.
 
 More
 ----
