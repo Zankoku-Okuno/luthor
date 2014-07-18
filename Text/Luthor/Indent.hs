@@ -136,7 +136,7 @@ indent :: (Stream s m Char) => ParsecIT s u m ()
 indent = _indent dentation
 
 _indent :: (Stream s m Char) => (IndentPolicy -> ParsecIT s u m Int) -> ParsecIT s u m ()
-_indent dent = try $ do
+_indent dent = expect "indent" . try $ do
     () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
@@ -158,7 +158,7 @@ nextline = _nextline dentation
 --lexNextline = _nextline lexDentation
 
 _nextline :: (Stream s m Char) => (IndentPolicy -> ParsecIT s u m Int) -> ParsecIT s u m ()
-_nextline dent = try $ do
+_nextline dent = expect "nextline" . try $ do
     () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
@@ -178,7 +178,7 @@ dedent = _dedent dentation
 --lexDedent = _dedent lexDentation
 
 _dedent :: (Stream s m Char) => (IndentPolicy -> ParsecIT s u m Int) -> ParsecIT s u m ()
-_dedent dent = try $ do
+_dedent dent = expect "dedent" . try $ do
     () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
@@ -203,9 +203,11 @@ isIndentEnabled = _enabled . snd <$> P.getState
 getIndentDepth :: (Stream s m t) => ParsecIT s u m Int
 getIndentDepth = do
     s <- snd <$> P.getState
-    when (not $ _enabled s) parserZero
+    when (not $ _enabled s) (fail "indentation disabled")
     let stack = _depth s
-    if null stack then parserZero else return (head stack)
+    if null stack
+        then fail "empty indent depth stack"
+        else return (head stack)
 
 
 -- |Run the passed parser with indentation enabled.
@@ -250,7 +252,7 @@ withoutIndentation p = do
 plusBlankline :: (Stream s m Char) => [ParsecIT s u m ()] -> ParsecIT s u m ()
 plusBlankline ps = manyOf_ $ ps ++ [blankline]
     where
-    blankline = try $ oneOf "\n\r" *> manyOf ps *> lookAhead lineBreak
+    blankline = expect "" . try $ newline *> manyOf ps *> lookAhead lineBreak
 
 
 -- |Alternate version of Parsec's @getState@ suited for indentation-sensitive parsers.
@@ -272,7 +274,7 @@ modifyState f = void $ P.updateParserState $
 peekIndentation :: (Monad m) => ParsecIT s u m Int
 peekIndentation = do
     stack <- _depth . snd <$> P.getState
-    when (null stack) $ fail "empty indentation depth stack"
+    when (null stack) $ fail "empty indent depth stack"
     return $ head stack
 
 -- |Pop the top of the depth stack and return the popped depth.
@@ -280,7 +282,7 @@ popIndentation :: (Monad m) => ParsecIT s u m Int
 popIndentation = do
     (u, s) <- P.getState
     let stack = _depth s
-    when (null stack) $ fail "empty indentation depth stack"
+    when (null stack) $ fail "empty indent depth stack"
     P.putState (u, s { _depth = tail stack })
     return $ head stack
 

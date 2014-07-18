@@ -79,7 +79,7 @@ string = try . P.string
 --FIXME use the CI type constructor
 -- |Parse a single character, case-insensitive. Normalized to lowercase.
 charI :: (Stream s m Char) => Char -> ParsecT s u m Char
-charI c = satisfy $ (== toLower c) . toLower
+charI c = expect [toLower c] . expect [toUpper c] . satisfy $ (== toLower c) . toLower
 
 -- |Parse a string, case-insensitive. If this parser fails, it consumes no input.
 --  Normalized to lowercase.
@@ -89,27 +89,27 @@ stringI str = try $ mapM charI str
 
 -- |Rule `UPALPHA` from RFC2616 §2.2
 upAlpha :: (Stream s m Char) => ParsecT s u m Char
-upAlpha = satisfy _upAlpha
+upAlpha = expect "uppercase character" $ satisfy _upAlpha
 
 -- |Rule `LOALPHA` from RFC2616 §2.2
 loAlpha :: (Stream s m Char) => ParsecT s u m Char
-loAlpha = satisfy _loAlpha
+loAlpha = expect "lowercase character" $ satisfy _loAlpha
 
 -- |Rule `ALPHA` from RFC2616 §2.2
 alpha :: (Stream s m Char) => ParsecT s u m Char
-alpha = satisfy _alpha
+alpha = expect "alphabetic character" $ satisfy _alpha
 
 -- |Rule `DIGIT` from RFC2616 §2.2
 digit :: (Stream s m Char) => ParsecT s u m Char
-digit = satisfy _digit
+digit = expect "digit" $ satisfy _digit
 
 -- |Parse a binary digit ('0' or '1')
 binDigit :: (Stream s m Char) => ParsecT s u m Char
-binDigit = oneOf "01"
+binDigit = expect "binary digit" $ oneOf "01"
 
 -- |Rule `CTL` from RFC2616 §2.2
 ctl :: (Stream s m Char) => ParsecT s u m Char
-ctl = satisfy _asciiControl
+ctl = expect "control character" $ satisfy _asciiControl
 
 -- |A single printable ASCII character, as the `TEXT` rule from RFC2616 §2.2 
 asciiText :: (Stream s m Char) => ParsecT s u m Char
@@ -140,16 +140,16 @@ dq :: (Stream s m Char) => ParsecT s u m ()
 dq = expect "double quote" . void $ char '\"'
 -- |A colon (:)
 colon :: (Stream s m Char) => ParsecT s u m ()
-colon = void $ char ':'
+colon = expect "colon" . void $ char ':'
 -- |A semicolon (;)
 semicolon :: (Stream s m Char) => ParsecT s u m ()
-semicolon = void $ char ';'
+semicolon = expect "semicolon" . void $ char ';'
 -- |A period (.)
 dot :: (Stream s m Char) => ParsecT s u m ()
-dot = void $ char '.'
+dot = expect "dot" . void $ char '.'
 -- |A comma (,)
 comma :: (Stream s m Char) => ParsecT s u m ()
-comma = void $ char ','
+comma = expect "comma" . void $ char ','
 
 -- |A backslash-escape: backslash followed by a single character
 --  satisfying the predicate.
@@ -179,20 +179,20 @@ yesno = yes <|> no
 
 -- |A cariage return + line feed sequence.
 crlf :: (Stream s m Char) => ParsecT s u m ()
-crlf = void "\r\n"
+crlf = expect "CRLF" $ void "\r\n"
 
 -- |Short for \"linear whitespace\": one or more spaces or tabs.
 --  Similar to rule `LWS` from RFC2616 §2.2, but without line folding.
 lws :: (Stream s m Char) => ParsecT s u m String
-lws = many1 $ oneOf " \t"
+lws = expect "linear whitespace" . many1 $ oneOf " \t"
 
 newline :: (Stream s m Char) => ParsecT s u m ()
-newline = void $ oneOf "\n\r"
+newline = expect "newline" . void $ oneOf "\n\r"
 
 -- |Recognize when the parser is at a line break (LF, CR, or end of input)
 --  If the break is due to a CR or LF, consume it.
 lineBreak :: (Stream s m Char) => ParsecT s u m ()
-lineBreak = void (oneOf "\n\r") <|> P.eof
+lineBreak = expect "line break" $ newline <|> P.eof
 
 --FIXME come up with better names; export
 bsnl :: (Stream s m Char) => ParsecT s u m ()
