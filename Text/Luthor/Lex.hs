@@ -100,7 +100,7 @@ type LuthorI s u = LuthorIT s u Identity
 
 {-| Connect and run a lexer and parser together. -}
 runLuthorT :: (Monad m, Stream s m x, Stream [Lexeme t] m y, Show x)
-           => ParsecT s u m [Lexeme t] -- ^ lexer: transform raw input stream into many tokens
+           => LexT s u m t -- ^ lexer: transform raw input stream into many tokens
            -> LuthorT t u m a -- ^ parser: transform token stream into parsed data
            -> u
            -> SourceName
@@ -114,7 +114,7 @@ runLuthorT lexer parser s source input = do
 
 {-| As 'runLuthorT' in the 'Identity' monad. -}
 runLuthor :: (Stream s Identity x, Stream [Lexeme t] Identity y, Show x)
-          => Parsec s u [Lexeme t] -- ^ lexer: transform raw input stream into many tokens
+          => Lex s u t -- ^ lexer: transform raw input stream into many tokens
           -> Luthor t u a -- ^ parser: transform token stream into parsed data
           -> u
           -> SourceName
@@ -126,7 +126,7 @@ runLuthor lexer parser s source input =
         Right (input', s') -> runP parser s' source input'
 
 runLuthorIT :: (Monad m, Stream s m Char, Stream [Lexeme t] m y)
-            => ParsecIT s u m [Lexeme t] -- ^ lexer: transform raw input stream into many tokens
+            => LexIT s u m t -- ^ lexer: transform raw input stream into many tokens
             -> LuthorT t u m a -- ^ parser: transform token stream into parsed data
             -> IndentPolicy -- ^ what characters count as leading space and how they should be counted
             -> [ParsecIT s u m ()] -- ^ a list of linear whitespace parsers
@@ -142,7 +142,7 @@ runLuthorIT lexer parser policy ws u source input = do
 
 
 runLuthorI :: (Stream s Identity Char, Stream [Lexeme t] Identity y)
-           => ParsecI s u [Lexeme t] -- ^ lexer: transform raw input stream into many tokens
+           => LexI s u t -- ^ lexer: transform raw input stream into many tokens
            -> Luthor t u a -- ^ parser: transform token stream into parsed data
            -> IndentPolicy -- ^ what characters count as leading space and how they should be counted
            -> [ParsecI s u ()] -- ^ a list of linear whitespace parsers
@@ -245,9 +245,9 @@ _lexPos :: Lexeme a -> SourcePos
 _lexPos (Lexeme pos _) = pos
 _lexPos (EndOfLexemes pos) = pos
 
-_wrap :: (Monad m, Stream s m t, Show t) => ParsecT s u m [Lexeme a] -> ParsecT s u m ([Lexeme a], u)
+_wrap :: (Monad m, Stream s m t, Show t) => LexT s u m a -> ParsecT s u m ([Lexeme a], u)
 _wrap lexer = do
-    result <- lexer
+    result <- many lexer
     end <- EndOfLexemes <$> getPosition <* eof
     s' <- getState
     return (result ++ [end], s')

@@ -111,17 +111,8 @@ Finally, we tie it all together into a token recognizer.
      lispAtom :: Lexed
      lispAtom = choice [ lispSymbol, lispInteger, lispDecimal, lispString ]
 
-     lexer :: Lexer [Lexeme Token]
-     lexer = do 
-         result <- many $ choice [ lispAtom, lispPunct, ws ]
-         extraDedents <- endOfInput *> eofDedent
-         return $ result ++ extraDedents
-         where
-         eofDedent = do
-             n <- peekIndentation
-             if n > 0
-                 then (lexeme $ Dedent <$ popIndentation) <$$> (:) <*> eofDedent
-                 else return []
+     lexer :: Lexed
+     lexer = choice [ lispAtom, lispPunct, ws ]
 
 Now, we can move onto parsing. Normal s-exprs are just an atom or
 a parenthesized list of s-exprs. Adding indentation-sensitivity,
