@@ -3,6 +3,10 @@ TODO
 regex to parser
 runOnly -- check eof just before returning value
 
+TEST
+====
+nextline + dedent
+
 CLEANUP
 =======
 common lexers

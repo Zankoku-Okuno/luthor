@@ -24,7 +24,7 @@ parenExpr :: Parser Lisp
 parenExpr = inParens bareExpr
 
 indentExpr :: Parser Lisp
-indentExpr = List <$> between indent dedent (bareExpr `sepBy1` nextline)
+indentExpr = List <$> between indent dedent' (bareExpr `sepBy1` nextline)
 
 wss :: [Parser ()]
 wss = [void lws, void $ lineComment ";"]

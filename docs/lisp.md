@@ -3,12 +3,10 @@ Extended Example
 
 This document shows off the features of the
 [luthor](https://hackage.haskell.org/package/luthor) package. Since this
-is an overview of every feature, we've decided to focus on a simple
+is an overview of many features, we've decided to focus on a simple
 example and not go too far in-depth on the possibilities luthor provides.
 For that, see our other documentation, which goes into each toolset
-independently. Also, since our example is actually a fairly small parser,
-the benefits of using `Lex` aren't clear, but it does pay off once your
-grammar gets perhaps two or three times this size.
+independently.
 
 It is highly recommended to read this file with the
 [API Reference](https://hackage.haskell.org/package/luthor) on hand.
@@ -17,104 +15,90 @@ them here, so a serious understanding will require a little homework.
 
 You might be reading this in html/markdown or in a Haskell file. The html
 is generated directly from the Haskell, so you can be assured that the
-code works as advertized, as well as run it yourself.
+code works as advertised, as well as run it yourself.
 
 First off, let's import some usual stuff...
 
-     import System.IO
-     import System.Environment
-     import System.Exit
-     import Data.List
+```haskell
+import System.IO
+import System.Environment
+import System.Exit
+import Data.List
+import Data.Ratio
+```
 
 and also import the relevant luthor modules.
 
-     import Text.Luthor
-     import Text.Luthor.Syntax
-     import Text.Luthor.Indent
-     import Text.Luthor.Lex as Lex
+```haskell
+import Text.Luthor
+import Text.Luthor.Syntax
+import Text.Luthor.Indent
+```
 
 Let's go ahead and define our abstract syntax right up front to give
 context to our parsers.
 
-     data Lisp = Atom Atom | List [Lisp]
-     data Atom = ASymbol String
-               | ANumber Rational
-               | AString String
-
-Since we're using a scannerful (lexing) parser, we'll need to connect the
-two processing segments with a data type for tokens.
-
-     data Token = Space
-                | AtomTok Atom
-                | OpenParen | CloseParen
-                | Indent | Nextline | Dedent
-         deriving (Show)
+```haskell
+data Lisp = Atom Atom | List [Lisp]
+data Atom = ASymbol String
+          | ANumber Rational
+          | AString String
+```
 
 A couple high-level shortcuts so we don't clutter the rest of the code.
 
-     type Lexer a = ParsecI String () a
-     type Lexed = LexI String () Token
-     type Parser a = Luthor Token () a
+```haskell
+type Parser a = ParsecI String () a
 
-     parseLisp :: SourceName -> String -> Either ParseError [Lisp]
-     parseLisp = runLuthorI lexer parser (DontMix " ") wss ()
+parseLisp :: SourceName -> String -> Either ParseError [Lisp]
+parseLisp = runParserI parseFile (DontMix " ") wss ()
+```
 
-And now we can hop right into the lexer.
-We'll start with simple atoms...
-
-     lispSymbol :: Lexed
-     lispSymbol = lexeme $ AtomTok . ASymbol <$>
-         let ident = charClass "a-zA-Z_0-9-" `many1Not` charClass "0-9-"
-         in ident `notFollowedBy` canStartAtom
-
-     lispInteger :: Lexed
-     lispInteger = lexeme $ AtomTok . ANumber . fromIntegral <$>
-         integer `notFollowedBy` (dot <|> void canStartAtom)
-
-     lispDecimal :: Lexed
-     lispDecimal = lexeme $ AtomTok . ANumber <$>
-         scientific `notFollowedBy` canStartAtom
-
-     lispString :: Lexed
-     lispString = lexeme $ AtomTok . AString <$>
-         dqString cEscapes `notFollowedBy` canStartAtom
-
-     canStartAtom :: Lexer Char
-     canStartAtom = aChar $ charClass "a-zA-Z_0-9\"+-"
-
-and then handle punctuation.
-
-     lispPunct :: Lexed
-     lispPunct = lexeme $ dispatch
-         [ (void $ char '(', pure OpenParen)
-         , (void $ char ')', pure CloseParen)
-         , (indent, pure Indent)
-         , (nextline, pure Nextline)
-         , (dedent, pure Dedent)
-         ]
-
-We'll also need to deal with whitespace.
+Let's start with linear whitespace. This is whitespace that doesn't
+affect indentation, but can separate tokens from each other.
 It will especially come in handy when configuring the indentation part
 of the parser to handle blank lines appropriately.
 
 For our purposes, whitespace includes spaces and tabs (`lws`), 
 line comments (starting with `;`) and line folds (backslash-newline).
 
-     wss :: [Lexer ()]
-     wss = [ void lws, void $ lineComment ";", bsnl ]
+```haskell
+wss :: [Parser ()]
+wss = [ void lws, void $ lineComment ";", bsnl ]
 
-     ws :: Lexed
-     ws = lexeme $ Space <$ many1_ (choice wss)
+ws :: Parser ()
+ws = many1_ $ choice wss
 
-Finally, we tie it all together into a token recognizer.
+ws0 :: Parser ()
+ws0 = optional_ ws
+```
 
-     lispAtom :: Lexed
-     lispAtom = choice [ lispSymbol, lispInteger, lispDecimal, lispString ]
+And now we can hop right into the heart of the parser.
+We'll start with simple atoms...
 
-     lexer :: Lexed
-     lexer = choice [ lispAtom, lispPunct, ws ]
+```haskell
+canStartAtom :: Parser ()
+canStartAtom = void . aChar $ charClass "a-zA-Z_0-9\"+-"
 
-Now, we can move onto parsing. Normal s-exprs are just an atom or
+lispSymbol :: Parser Atom
+lispSymbol = ASymbol <$>
+    let ident = charClass "a-zA-Z_0-9-" `many1Not` charClass "0-9-"
+    in ident `notFollowedBy` canStartAtom
+
+lispInteger :: Parser Atom
+lispInteger = ANumber . fromIntegral <$>
+    integer `notFollowedBy` (dot <|> canStartAtom)
+
+lispDecimal :: Parser Atom
+lispDecimal = ANumber <$>
+    scientific `notFollowedBy` canStartAtom
+
+lispString :: Parser Atom
+lispString = AString <$>
+    dqString cEscapes `notFollowedBy` canStartAtom
+```
+
+...and then expressions. Normal s-exprs are just an atom or
 a parenthesized list of s-exprs. Adding indentation-sensitivity,
 we also allow indented s-exprs separated by newlines.
 Ah yes, and there's the special nil s-expr, spelled `()`.
@@ -123,96 +107,95 @@ There is one oddity: we want close parens and dedents to be
 interchangeable. Therefore, a list expression can end with a dedent or
 with a close paren, regardless of how it began.
 
-Out first step is to provide a clean way to extract particular payloads
-from our lexeme stream, the same way the Parsec implementation has to
-define a way to get at the `Char`s when parsing `String`s.
+```haskell
+openParen :: Parser ()
+openParen = char '(' *> ws0
 
-     atom :: Parser Lisp
-     atom = unlex $ \t -> case t of
-         AtomTok x -> Just $ Atom x
-         _ -> Nothing
+closeParen :: Parser ()
+closeParen = ws0 <* char ')'
 
-     openParen :: Parser ()
-     openParen = unlex $ \t -> case t of { OpenParen -> Just (); _ -> Nothing } 
+close :: Parser ()
+close = closeParen <||> dedent
 
-     openIndent :: Parser ()
-     openIndent = unlex $ \t -> case t of { Indent -> Just (); _ -> Nothing }
+lispNil :: Parser Lisp
+lispNil = List [] <$ openParen <* closeParen
 
-     close :: Parser ()
-     close = unlex $ \t -> case t of
-         CloseParen -> Just ()
-         Dedent -> Just ()
-         _ -> Nothing
 
-     next :: Parser ()
-     next = unlex $ \t -> case t of { Nextline -> Just (); _ -> Nothing }
+bareExpr :: Parser [Lisp]
+bareExpr = expr `sepBy1` ws0
 
-     nil :: Parser Lisp
-     nil = List [] <$ do
-         openParen
-         unlex $ \t -> case t of { CloseParen -> Just (); _ -> Nothing }
+parenExpr :: Parser Lisp
+parenExpr = between openParen close $ List <$> bareExpr 
 
-Now, we get down to the business of grammar:
+indentExpr :: Parser Lisp
+indentExpr = between indent close $
+    List . (List <$>) <$> bareExpr `sepBy1` nextline
+```
 
-     expr :: Parser Lisp
-     expr = atom <||> nil <||> parenExpr <||> indentExpr
+Finally, we tie it all together.
 
-     parenExpr :: Parser Lisp
-     parenExpr = between openParen close $ List <$> many1 expr 
+```haskell
+atom :: Parser Lisp
+atom = lispNil <||> Atom <$>
+    choice [ lispSymbol
+           , lispInteger
+           , lispDecimal
+           , lispString
+           ]
 
-     indentExpr :: Parser Lisp
-     indentExpr = between openIndent close $ do
-         inner <- many1 expr `sepBy1` next
-         return $ case inner of
-             [e] -> List e
-             es -> List (List <$> es)
+expr :: Parser Lisp
+expr = atom <||> parenExpr <||> indentExpr
 
-Finally, we filter out extraneous whitespace and parse a file full of
-s-exprs.
+parseFile :: Parser [Lisp]
+parseFile = between (pure ()) endOfInput $
+        (List <$> bareExpr) `sepAroundBy` nextline
+```
 
-     isExtraSpace :: Token -> Bool
-     isExtraSpace t = case t of { Space -> True; _ -> False }
-
-     parser :: Parser [Lisp]
-     parser = between (ignore isExtraSpace) endOfInput $
-         expr `sepEndBy` next
-
-...and we're done with the parser. We've already built our `parseLisp`
+...and we're done. We've already built our `parseLisp`
 shortcut, so we can move on to setting up a program to actually use our
 new parser, but before we build our main, I'll set up some `Show`
 instances...
 
-     instance Show Atom where
-         show (ASymbol name) = name
-         show (ANumber n) = show n
-         show (AString str) = show str
-     instance Show Lisp where
-         show (Atom a) = show a
-         show (List xs) = "(" ++ intercalate " " (map show xs) ++ ")"
+```haskell
+instance Show Atom where
+    show (ASymbol name) = name
+    show (ANumber n) | denom == 1 = show numer
+                     | otherwise = show numer ++ "/" ++ show denom
+        where
+        numer = numerator n
+        denom = denominator n
+    show (AString str) = show str
+instance Show Lisp where
+    show (Atom a) = show a
+    show (List xs) = "(" ++ intercalate " " (map show xs) ++ ")"
+```
 
 ...because the main really is just a transpiler from this
 indentation-sensitive Lisp to a fully-parenthesized Lisp.
 
-     main :: IO ()
-     main = do
-         inFile <- getArgs >>= \args -> case args of
-             [inFile] -> return inFile
-             _ -> hPutStrLn stderr ("usage: lisp.hs filename") *> exitFailure
-         result <- parseLisp inFile <$> readFile inFile
-         print result
-         putStrLn "Goodbyte, cruel world!"
+```haskell
+main :: IO ()
+main = do
+    inFile <- getArgs >>= \args -> case args of
+        [inFile] -> return inFile
+        _ -> hPutStrLn stderr ("usage: lisp.hs filename") *> exitFailure
+    results <- parseLisp inFile <$> readFile inFile
+    case results of
+        Right exprs -> mapM_ print exprs
+        Left err -> print err *> exitFailure
+```
 
 And there you have it. Try this out on some of the example files included
-in the package (docs/*.l), or experiment with your own.
+in the package (`docs/*.l`), or experiment with your own.
 
 Going further, it would be a simple matter to introduce the rest of the
 familiar Lisp syntax:
 
-    * Add quotation and quasiquotation by adding appropriate token sorts,
-        tokenizers and parser.
-    * Add dotted-expressions with a token sort, tokenizer and a
-        chainr-based parser.
-    * Comment out s-exprs the same way you might quote an s-expr.
+* Add quotation and quasiquotation by adding appropriate token sorts,
+    tokenizers and parser.
+* Add dotted-expressions with a token sort, tokenizer and a
+    chainr-based parser.
+* Comment out s-exprs the same way you might quote an s-expr.
 
 And of course, it's not hard to build a Lisp interpreter. You could always
 build a driver that interprets instead of transpiles.

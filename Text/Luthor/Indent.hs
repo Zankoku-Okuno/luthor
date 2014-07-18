@@ -24,6 +24,7 @@ module Text.Luthor.Indent (
     -- * Parse Indentation
     , plusBlankline
     , indent, nextline, dedent
+    , dedent'
     --, lexIndent, lexNextline, lexDedent --FIXME
     , startIndent, endIndent
     -- * Read/Write Indentation State
@@ -174,6 +175,9 @@ _nextline dent = expect "nextline" . try $ do
 dedent :: (Stream s m Char) => ParsecIT s u m ()
 dedent = _dedent dentation
 
+dedent' :: (Stream s m Char) => ParsecIT s u m ()
+dedent' = _dedent dentation *> optional_ nextline
+
 --lexDedent :: (Stream s m Char) => ParsecIT s u m ()
 --lexDedent = _dedent lexDentation
 
@@ -182,17 +186,16 @@ _dedent dent = expect "dedent" . try $ do
     () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
-    (n', State rest pos (u, s)) <- lookAhead $ dent policy <$$> (,) <*> P.getParserState
+    n' <- lookAhead $ dent policy
     case n' `compare` n of
         LT -> return ()
         EQ -> unexpected "nextline"
         GT -> unexpected "indent"
+    (u, s) <- P.getState
     let depth' = tail $ _depth s
         s' = s { _depth = depth' }
     when (n' `notElem` depth') $ fail "dedent has no corresponding indent"
-    if null depth' || head depth' == n'
-        then void $ P.setParserState (State rest pos (u, s'))
-        else P.putState (u, s')
+    P.putState (u, s')
 
 
 -- |Test if indentation is enabled.
