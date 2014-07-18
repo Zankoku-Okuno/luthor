@@ -9,6 +9,10 @@
     skip over blank lines.
     Indentation may also be enabled/disabled, such as when parsing between parens
     or braces.
+
+    WARNING: do not attempt to build an indentation-sensitive lexer using @Lex@
+    and this module. It is tially broken, and I don't want to sink that much time
+    into figuring out what's wrong with it.
 -}
 {-# LANGUAGE FlexibleContexts #-}
 module Text.Luthor.Indent (
@@ -20,6 +24,7 @@ module Text.Luthor.Indent (
     -- * Parse Indentation
     , plusBlankline
     , indent, nextline, dedent
+    --, lexIndent, lexNextline, lexDedent --FIXME
     , startIndent, endIndent
     -- * Read/Write Indentation State
     , isIndentEnabled
@@ -122,14 +127,20 @@ runPI :: Stream s Identity Char
 runPI = runParserI
 
 
+--lexIndent :: (Stream s m Char) => ParsecIT s u m ()
+--lexIndent = _indent lexDentation
+
 -- |Parse an indent: as 'dentation' ensuring the result is greater than
 --  the current indentation level. Pushes the indentation depth stack.
 indent :: (Stream s m Char) => ParsecIT s u m ()
-indent = try $ do
+indent = _indent dentation
+
+_indent :: (Stream s m Char) => (IndentPolicy -> ParsecIT s u m Int) -> ParsecIT s u m ()
+_indent dent = try $ do
     () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
-    n' <- dentation policy
+    n' <- dent policy
     case n' `compare` n of
         LT -> unexpected "dedent"
         EQ -> unexpected "nextline"
@@ -141,11 +152,17 @@ indent = try $ do
 -- |Parse an indent: as 'dentation' ensuring the result is equal to
 --  the current indentation level.
 nextline :: (Stream s m Char) => ParsecIT s u m ()
-nextline = try $ do
+nextline = _nextline dentation
+
+--lexNextline :: (Stream s m Char) => ParsecIT s u m ()
+--lexNextline = _nextline lexDentation
+
+_nextline :: (Stream s m Char) => (IndentPolicy -> ParsecIT s u m Int) -> ParsecIT s u m ()
+_nextline dent = try $ do
     () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
-    n' <- dentation policy
+    n' <- dent policy
     case n' `compare` n of
         LT -> unexpected "dedent"
         EQ -> return ()
@@ -155,11 +172,17 @@ nextline = try $ do
 --  the current indentation level. Pops the indentation depth stack.
 --  If more dedents could be parsed, then no input is consumed.
 dedent :: (Stream s m Char) => ParsecIT s u m ()
-dedent = try $ do
+dedent = _dedent dentation
+
+--lexDedent :: (Stream s m Char) => ParsecIT s u m ()
+--lexDedent = _dedent lexDentation
+
+_dedent :: (Stream s m Char) => (IndentPolicy -> ParsecIT s u m Int) -> ParsecIT s u m ()
+_dedent dent = try $ do
     () <- _ws . snd =<< P.getState
     n <- getIndentDepth
     policy <- _policy . snd <$> P.getState
-    (n', State rest pos (u, s)) <- lookAhead $ dentation policy <$$> (,) <*> P.getParserState
+    (n', State rest pos (u, s)) <- lookAhead $ dent policy <$$> (,) <*> P.getParserState
     case n' `compare` n of
         LT -> return ()
         EQ -> unexpected "nextline"

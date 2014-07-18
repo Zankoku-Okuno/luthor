@@ -88,9 +88,9 @@ lispPunct :: Lexed
 lispPunct = lexeme $ dispatch
     [ (void $ char '(', pure OpenParen)
     , (void $ char ')', pure CloseParen)
-    , (indent, pure Indent)
-    , (nextline, pure Nextline)
-    , (dedent, pure Dedent)
+    , (lexIndent, pure Indent)
+    , (lexNextline, pure Nextline)
+    , (lexDedent, pure Dedent)
     ]
 
 -- We'll also need to deal with whitespace.
@@ -139,7 +139,7 @@ openIndent :: Parser ()
 openIndent = unlex $ \t -> case t of { Indent -> Just (); _ -> Nothing }
 
 close :: Parser ()
-close = unlex $ \t -> case t of
+close = (endOfLexemes <|>) $ unlex $ \t -> case t of
     CloseParen -> Just ()
     Dedent -> Just ()
     _ -> Nothing
@@ -154,15 +154,18 @@ nil = List [] <$ do
 
 -- Now, we get down to the business of grammar:
 
+bareExpr :: Parser [Lisp]
+bareExpr = many1 expr
+
 expr :: Parser Lisp
 expr = atom <||> nil <||> parenExpr <||> indentExpr
 
 parenExpr :: Parser Lisp
-parenExpr = between openParen close $ List <$> many1 expr 
+parenExpr = between openParen close $ List <$> bareExpr 
 
 indentExpr :: Parser Lisp
 indentExpr = between openIndent close $ do
-    inner <- many1 expr `sepBy1` next
+    inner <- bareExpr `sepBy1` next
     return $ case inner of
         [e] -> List e
         es -> List (List <$> es)
@@ -174,8 +177,11 @@ isExtraSpace :: Token -> Bool
 isExtraSpace t = case t of { Space -> True; _ -> False }
 
 parser :: Parser [Lisp]
-parser = between (ignore isExtraSpace) endOfInput $
-    expr `sepEndBy` next
+parser = between (ignore isExtraSpace) endOfLexemes $
+    (wrap <$> bareExpr) `sepEndBy` next
+    where
+    wrap [e] = e
+    wrap es = List es
 
 -- ...and we're done with the parser. We've already built our `parseLisp`
 -- shortcut, so we can move on to setting up a program to actually use our
@@ -198,21 +204,22 @@ main = do
     inFile <- getArgs >>= \args -> case args of
         [inFile] -> return inFile
         _ -> hPutStrLn stderr ("usage: lisp.hs filename") *> exitFailure
-    result <- parseLisp inFile <$> readFile inFile
-    print result
-    putStrLn "Goodbyte, cruel world!"
+    results <- parseLisp inFile <$> readFile inFile
+    case results of
+        Right exprs -> mapM_ print exprs
+        Left err -> print err *> exitFailure
 
 -- And there you have it. Try this out on some of the example files included
--- in the package (docs/*.l), or experiment with your own.
+-- in the package (`docs/*.l`), or experiment with your own.
 --
 -- Going further, it would be a simple matter to introduce the rest of the
 -- familiar Lisp syntax:
 --
---     * Add quotation and quasiquotation by adding appropriate token sorts,
---         tokenizers and parser.
---     * Add dotted-expressions with a token sort, tokenizer and a
---         chainr-based parser.
---     * Comment out s-exprs the same way you might quote an s-expr.
+-- * Add quotation and quasiquotation by adding appropriate token sorts,
+--     tokenizers and parser.
+-- * Add dotted-expressions with a token sort, tokenizer and a
+--     chainr-based parser.
+-- * Comment out s-exprs the same way you might quote an s-expr.
 --
 -- And of course, it's not hard to build a Lisp interpreter. You could always
 -- build a driver that interprets instead of transpiles.

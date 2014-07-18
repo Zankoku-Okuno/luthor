@@ -19,9 +19,10 @@ module Text.Luthor.Syntax (
     , yes, no, yesno
     -- * Programming Idioms
     -- ** Whitespace
-    , lws, crlf, lineBreak
+    , lws, newline, lineBreak, crlf
     , bsnl, bsnlwsbs
     , IndentPolicy(..), dentation
+    --, lexDentation --FIXME
     -- ** Identifiers
     , many1Not
     , sigilized
@@ -185,6 +186,9 @@ crlf = void "\r\n"
 lws :: (Stream s m Char) => ParsecT s u m String
 lws = many1 $ oneOf " \t"
 
+newline :: (Stream s m Char) => ParsecT s u m ()
+newline = void $ oneOf "\n\r"
+
 -- |Recognize when the parser is at a line break (LF, CR, or end of input)
 --  If the break is due to a CR or LF, consume it.
 lineBreak :: (Stream s m Char) => ParsecT s u m ()
@@ -214,15 +218,30 @@ data IndentPolicy = DontMix [Char]
     
     The acceptable whitespace characters and the method by whch to
     caclulate depth is determined by an 'IntentPolicy'.
+
+    WARNING: Do not use this combinator with the @Lex@ module, it
+    will break because Parsec is sissy.
 -}
 dentation :: (Stream s m Char) => IndentPolicy -> ParsecT s u m Int
-dentation (DontMix cs) = try $ do
-    lineBreak
+dentation = _dentation lineBreak
+
+{-| Version of 'dentation' suitable for us in lexing parsers built on @Lex@
+
+    This parser will not detect dedents at the end of input. Therefore,
+    when you wish to recognize a dedent in your parser, recognize 'endOfInput'
+    as well as your dedent tokens.
+-}
+lexDentation :: (Stream s m Char) => IndentPolicy -> ParsecT s u m Int
+lexDentation = _dentation newline
+
+_dentation :: (Stream s m Char) => ParsecT s u m newline -> IndentPolicy -> ParsecT s u m Int
+_dentation nl (DontMix cs) = try $ do
+    nl
     ws <- P.many $ oneOf cs
     when (length (nub ws) > 1) $ unexpected "mixed indentation"
     return $ length ws
-dentation (Convert table) = try $ do
-    lineBreak
+_dentation nl (Convert table) = try $ do
+    nl
     ws <- P.many $ oneOf (fst <$> table)
     return $ sum [fromJust $ lookup c table | c <- ws]
 
