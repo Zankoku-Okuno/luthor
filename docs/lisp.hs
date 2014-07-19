@@ -27,7 +27,7 @@ import Data.List
 import Data.Ratio
 --end
 
--- and also import the relevant luthor modules.
+-- ...and also import the relevant luthor modules.
 
 --haskell
 import Text.Luthor
@@ -60,7 +60,8 @@ parseLisp = runParserI parseFile (DontMix " ") wss ()
 -- of the parser to handle blank lines appropriately.
 --
 -- For our purposes, whitespace includes spaces and tabs (`lws`), 
--- line comments (starting with `;`) and line folds (backslash-newline).
+-- line comments (starting with semicolon) and line folds
+-- (backslash-newline).
 
 --haskell
 wss :: [Parser ()]
@@ -129,7 +130,7 @@ parenExpr = between openParen close $ List <$> bareExpr
 
 indentExpr :: Parser Lisp
 indentExpr = between indent close $
-    List . (List <$>) <$> bareExpr `sepBy1` nextline
+    List . (map List) <$> bareExpr `sepBy1` nextline
 --end
 
 -- Finally, we tie it all together.
@@ -191,11 +192,11 @@ main = do
 -- Going further, it would be a simple matter to introduce the rest of the
 -- familiar Lisp syntax:
 --
--- * Add quotation and quasiquotation by adding appropriate token sorts,
---     tokenizers and parser.
--- * Add dotted-expressions with a token sort, tokenizer and a
---     chainr-based parser.
--- * Comment out s-exprs the same way you might quote an s-expr.
+-- * Additional atoms: complex numbers, characters, vectors, &c
+-- * Include symbols (`!*/` &c) in identifiers
+-- * Quotation and quasiquotation
+-- * Dotted-expressions
+-- * Comment out an s-expr
 --
 -- And of course, it's not hard to build a Lisp interpreter. You could always
 -- build a driver that interprets instead of transpiles.
