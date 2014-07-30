@@ -77,6 +77,9 @@ module Text.Luthor.Combinator (
     , lookAhead
     , notFollowedBy
     , atEndOfInput, endOfInput
+    -- * Input Stream
+    , allInput
+    , withRemainingInput
     -- * Additional Data
     , (<?>), expect
     , withPosition, withPositionEnd, withPositions
@@ -388,6 +391,15 @@ atEndOfInput = option False $ True <$ endOfInput
 -- |Succeed only when at the end of the input stream.
 endOfInput :: (Stream s m t, Show t) => ParsecT s u m ()
 endOfInput = P.eof
+
+
+-- |Uses the passed parser, but succeeds only if it consumes all of the input.
+allInput :: (Stream s m t, Show t) => ParsecT s u m a -> ParsecT s u m a
+allInput = (<* endOfInput)
+
+-- |Parse using the passed parser, but also return the input that was not consumed.
+withRemainingInput :: (Stream s m t) => ParsecT s u m a -> ParsecT s u m (a, s)
+withRemainingInput p = p <$$> (,) <*> P.getInput
 
 
 -- |Flipped '<?>'.
