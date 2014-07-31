@@ -27,7 +27,7 @@ cabal install
 Usage
 -----
 
-The API docs have sufficient examples for the [Combinator](https://hackage.haskell.org/package/luthor/TODO) and [Common Syntax](https://hackage.haskell.org/package/luthor/TODO) tools.
+The API docs have sufficient examples for the [Combinator](http://hackage.haskell.org/package/luthor/docs/Text-Luthor-Combinator.html) and [Common Syntax](http://hackage.haskell.org/package/luthor/docs/Text-Luthor-Syntax.html) tools.
 
 Here's an [extended example](lisp.md) of a Lisp parser. It touches on most of the library, except the lexing tools.
 
