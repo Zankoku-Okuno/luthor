@@ -24,20 +24,15 @@ cabal install
 ```
 
 
-Examples
---------
+Usage
+-----
 
-Luthor is structured as several independent tools which may be used individually or in any combination.
+The API docs have sufficient examples for the [Combinator](https://hackage.haskell.org/package/luthor/TODO) and [Common Syntax](https://hackage.haskell.org/package/luthor/TODO) tools.
 
-* [Composable Combinators](combinator.md)
-* [Common Syntaxes](syntax.md)
-* [Indentation](indent.md)
-* [Building Lexers](lex.md)
+Here's an [extended example](lisp.md) of a Lisp parser. It touches on most of the library, except the lexing tools.
 
-There's also an [extended example](lisp.md) of a Lisp parser.
+An example of the lexing tools should be on its way whenever I get around to it. If you ask for it in the [issues](https://github.com/Zankoku-Okuno/luthor/issues), I'll be right on it.
 
-More
-----
 
 * [API Reference](https://hackage.haskell.org/package/luthor)
 * [Report Problems](https://github.com/Zankoku-Okuno/luthor/issues)

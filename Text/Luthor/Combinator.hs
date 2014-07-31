@@ -85,7 +85,6 @@ module Text.Luthor.Combinator (
     , withPosition, withPositionEnd, withPositions
     -- * Re-exports
     , try, (<|>), P.unexpected, void
-    --FIXME I need to re-export a lot of crap, but maybe in Text.Luthor
     ) where
 
 import Text.Parsec.Prim (ParsecT, Stream, try, (<|>), (<?>))
@@ -130,8 +129,8 @@ choice = P.choice . map try
 -}
 dispatch :: Stream s m t => [(ParsecT s u m a, ParsecT s u m b)] -> ParsecT s u m b
 dispatch [] = P.choice []
-dispatch ((canary, payload):rest) = do
-    go <- not . isNothing <$> optional canary
+dispatch ((recognize, payload):rest) = do
+    go <- isJust <$> optional recognize
     if go then payload else dispatch rest
 
 {-| Attempt all of the passed parsers under the current conditions and

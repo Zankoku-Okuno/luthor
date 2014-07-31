@@ -22,7 +22,6 @@ module Text.Luthor.Syntax (
     , lws, newline, lineBreak, crlf
     , bsnl, bsnlwsbs
     , IndentPolicy(..), dentation
-    --, lexDentation --FIXME
     -- ** Identifiers
     , many1Not
     , sigilized
@@ -177,7 +176,7 @@ yesno :: (Stream s m Char) => ParsecT s u m Bool
 yesno = yes <|> no
 
 
--- |A cariage return + line feed sequence.
+-- |A carriage return + line feed sequence.
 crlf :: (Stream s m Char) => ParsecT s u m ()
 crlf = expect "CRLF" $ void "\r\n"
 
@@ -186,6 +185,8 @@ crlf = expect "CRLF" $ void "\r\n"
 lws :: (Stream s m Char) => ParsecT s u m String
 lws = expect "linear whitespace" . many1 $ oneOf " \t"
 
+-- |Parse a single line feed or carriage return.
+--  Does not succeed at end of file.
 newline :: (Stream s m Char) => ParsecT s u m ()
 newline = expect "newline" . void $ oneOf "\n\r"
 
@@ -194,14 +195,18 @@ newline = expect "newline" . void $ oneOf "\n\r"
 lineBreak :: (Stream s m Char) => ParsecT s u m ()
 lineBreak = expect "line break" $ newline <|> P.eof
 
---FIXME come up with better names; export
+--FIXME come up with better names (bsnl, bsnlwsbs)
+-- |Parse a backslash followed by a 'newline'
 bsnl :: (Stream s m Char) => ParsecT s u m ()
-bsnl = void $ char '\\' *> lineBreak
+bsnl = void $ char '\\' *> newline
+-- |Parse a backslash followed by a 'newline',
+--  then linear whitespace ('lws') and finally another backslash.
 bsnlwsbs :: (Stream s m Char) => ParsecT s u m ()
-bsnlwsbs = void $ between2 (char '\\') $ lineBreak *> lws
+bsnlwsbs = void $ between2 (char '\\') $ newline *> lws
 
 
---TODO line-whitespace, any-whitespace, blank lines
+--TODO unicode: line-whitespace, any-whitespace
+--TODO blank lines
 
 -- |Determine how the depth of indentation is calculated.
 data IndentPolicy = DontMix [Char]
@@ -515,7 +520,6 @@ blockComment :: (Stream s m Char)
 blockComment start end = do
     string start
     P.anyChar `manyThru` string end
-    --FIXME fail if reached end of file -- probably edit manyThru/manyTill if needed
 
 {-| Parse a nesting block comment.
 
@@ -528,12 +532,13 @@ nestingComment :: (Stream s m Char)
 nestingComment start end = do
     string start
     concat <$> (inner <|> text) `manyThru` string end
-    --FIXME fail if reached end of file -- probably edit manyThru/manyTill if needed
     where
     inner = nestingComment start end >>= \body -> return (start ++ body ++ end)
     text = P.anyChar `manyTill` (string start <|> string end)
 
 
+-- |Parse a single char when it satisfies the predicate.
+--  Fails when the next input character does not satisfy the predicate.
 aChar :: (Stream s m Char) => (Char -> Bool) -> ParsecT s u m Char
 aChar = satisfy
 
@@ -563,7 +568,7 @@ charClass str = case str of
     ('^':str') -> not . go [] [] str'
     _ -> go [] [] str
     where
-    go singles ranges [] = \c -> inRange c `any` ranges || c `elem` (nub singles)
+    go singles ranges [] = \c -> inRange c `any` ranges || c `elem` nub singles
     go singles ranges (lo:'-':hi:rest) = go singles ((lo, hi):ranges) rest
     go singles ranges (c:rest) = go (c:singles) ranges rest
     inRange c (lo, hi) = lo <= c && c <= hi
@@ -612,7 +617,7 @@ uniIdClass c = case generalCategory c of
 -- |Accepts characters from 'uniIdClass', except those which 
 --  satisfy the passed predicate.
 uniIdClassMinus :: (Char -> Bool) -> (Char -> Bool)
-uniIdClassMinus p = \c -> uniIdClass c && not (p c)
+uniIdClassMinus p c = uniIdClass c && not (p c)
 
 
 instance (IsString a, Stream s m Char) => IsString (ParsecT s u m a) where
@@ -646,4 +651,6 @@ stringToInteger base = fromIntegral . foldl impl 0
 {-| Interpret a string as a mantissa in the passed base. -}
 stringToMantissa :: Int -> String -> Ratio Integer
 stringToMantissa base = (/ (fromIntegral base%1)) . foldr impl (0 % 1)
-    where impl x acc = acc / (fromIntegral base%1) + (((%1) . fromIntegral . digitToInt) x)
+    where
+    impl x acc = acc / (fromIntegral base%1) + digitToRatio x
+    digitToRatio = (%1) . fromIntegral . digitToInt

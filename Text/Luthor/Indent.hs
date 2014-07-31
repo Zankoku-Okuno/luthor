@@ -25,7 +25,6 @@ module Text.Luthor.Indent (
     , plusBlankline
     , indent, nextline, dedent
     , dedent'
-    --, lexIndent, lexNextline, lexDedent --FIXME
     , startIndent, endIndent
     -- * Read/Write Indentation State
     , isIndentEnabled
@@ -75,8 +74,8 @@ startIndent policy ws = IS policy [0] True (plusBlankline ws)
 endIndent :: (Stream s m Char) => ParsecIT s u m ()
 endIndent = do
     s <- snd <$> P.getState
-    if not (_enabled s) || null (_depth s) || _depth s == [0]
-        then return () else dedent *> endIndent
+    unless (_enabled s || null (_depth s) || _depth s == [0]) $
+        dedent *> endIndent
 
 
 -- |Type for Parsec parsers tracking indentation.
@@ -128,20 +127,12 @@ runPI :: Stream s Identity Char
 runPI = runParserI
 
 
---lexIndent :: (Stream s m Char) => ParsecIT s u m ()
---lexIndent = _indent lexDentation
-
 -- |Parse an indent: as 'dentation' ensuring the result is greater than
 --  the current indentation level. Pushes the indentation depth stack.
 indent :: (Stream s m Char) => ParsecIT s u m ()
-indent = _indent dentation
-
-_indent :: (Stream s m Char) => (IndentPolicy -> ParsecIT s u m Int) -> ParsecIT s u m ()
-_indent dent = expect "indent" . try $ do
-    () <- _ws . snd =<< P.getState
-    n <- getIndentDepth
-    policy <- _policy . snd <$> P.getState
-    n' <- dent policy
+indent = expect "indent" . try $ do
+    (n, policy) <- _prepForDentation
+    n' <- dentation policy
     case n' `compare` n of
         LT -> unexpected "dedent"
         EQ -> unexpected "nextline"
@@ -153,17 +144,9 @@ _indent dent = expect "indent" . try $ do
 -- |Parse an indent: as 'dentation' ensuring the result is equal to
 --  the current indentation level.
 nextline :: (Stream s m Char) => ParsecIT s u m ()
-nextline = _nextline dentation
-
---lexNextline :: (Stream s m Char) => ParsecIT s u m ()
---lexNextline = _nextline lexDentation
-
-_nextline :: (Stream s m Char) => (IndentPolicy -> ParsecIT s u m Int) -> ParsecIT s u m ()
-_nextline dent = expect "nextline" . try $ do
-    () <- _ws . snd =<< P.getState
-    n <- getIndentDepth
-    policy <- _policy . snd <$> P.getState
-    n' <- dent policy
+nextline = expect "nextline" . try $ do
+    (n, policy) <- _prepForDentation
+    n' <- dentation policy
     case n' `compare` n of
         LT -> unexpected "dedent"
         EQ -> return ()
@@ -171,22 +154,11 @@ _nextline dent = expect "nextline" . try $ do
 
 -- |Parse an indent: as 'dentation' ensuring the result is less than
 --  the current indentation level. Pops the indentation depth stack.
---  If more dedents could be parsed, then no input is consumed.
+--  Consumes no input, thus multiple dedents might be parsed at a single position.
 dedent :: (Stream s m Char) => ParsecIT s u m ()
-dedent = _dedent dentation
-
-dedent' :: (Stream s m Char) => ParsecIT s u m ()
-dedent' = _dedent dentation *> optional_ nextline
-
---lexDedent :: (Stream s m Char) => ParsecIT s u m ()
---lexDedent = _dedent lexDentation
-
-_dedent :: (Stream s m Char) => (IndentPolicy -> ParsecIT s u m Int) -> ParsecIT s u m ()
-_dedent dent = expect "dedent" . try $ do
-    () <- _ws . snd =<< P.getState
-    n <- getIndentDepth
-    policy <- _policy . snd <$> P.getState
-    n' <- lookAhead $ dent policy
+dedent = expect "dedent" . try $ do
+    (n, policy) <- _prepForDentation
+    n' <- lookAhead $ dentation policy
     case n' `compare` n of
         LT -> return ()
         EQ -> unexpected "nextline"
@@ -196,6 +168,18 @@ _dedent dent = expect "dedent" . try $ do
         s' = s { _depth = depth' }
     when (n' `notElem` depth') $ fail "dedent has no corresponding indent"
     P.putState (u, s')
+
+_prepForDentation :: (Stream s m Char) => ParsecIT s u m (Int, IndentPolicy)
+_prepForDentation = do
+    () <- _ws =<< snd <$> P.getState
+    n <- getIndentDepth
+    policy <- _policy . snd <$> P.getState
+    return (n, policy)
+
+-- |As 'dedent', but also consume the 'nextline'.
+--  The leading whitespace is left intact.
+dedent' :: (Stream s m Char) => ParsecIT s u m ()
+dedent' = dedent <* optional_ nextline
 
 
 -- |Test if indentation is enabled.
@@ -207,12 +191,11 @@ isIndentEnabled = _enabled . snd <$> P.getState
 getIndentDepth :: (Stream s m t) => ParsecIT s u m Int
 getIndentDepth = do
     s <- snd <$> P.getState
-    when (not $ _enabled s) (fail "indentation disabled")
+    unless (_enabled s) (fail "indentation disabled")
     let stack = _depth s
     if null stack
         then fail "empty indent depth stack"
         else return (head stack)
-
 
 -- |Run the passed parser with indentation enabled.
 withIndentation :: (Stream s m t) => ParsecIT s u m a -> ParsecIT s u m a

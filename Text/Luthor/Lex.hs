@@ -46,14 +46,13 @@ module Text.Luthor.Lex (
     -- ** Shortcuts
     , Lex, Luthor
     , runLuthor
-    , LexIT, LexI, LuthorIT, LuthorI
-    , runLuthorIT, runLuthorI
     -- * Produce Lexemes
     , lexeme
     , ignore
     -- * Consume Lexemes
-    , unlex, satisfy
-    , anyLexeme
+    , unlex
+    , unlexWith
+    , satisfy
     , endOfLexemes
     , isAtEnd
     ) where
@@ -67,7 +66,6 @@ import Text.Parsec.Pos
 import Text.Parsec.Prim
 import Text.Parsec.Combinator (eof)
 import Text.Luthor.Combinator
-import Text.Luthor.Indent (runPIT, runPI, ParsecIT, ParsecI, IndentState, IndentPolicy)
 
 
 {-| A lexer: producer of 'Lexeme's -}
@@ -90,12 +88,6 @@ data Lexeme a = Lexeme SourcePos a
 type Lex s u a = LexT s u Identity a
 -- |Synonym for parsers over the 'Identity' monad.
 type Luthor s u = LuthorT s u Identity
-
-type LexIT s u m a = LexT s (u, IndentState s u m) m a
-type LexI s u a = LexIT s u Identity a
-
-type LuthorIT s u m = LuthorT s (u, IndentState s u m) m
-type LuthorI s u = LuthorIT s u Identity
 
 
 {-| Connect and run a lexer and parser together. -}
@@ -124,36 +116,6 @@ runLuthor lexer parser s source input =
     case runP (_wrap lexer) s source input of
         Left err -> Left err
         Right (input', s') -> runP parser s' source input'
-
-runLuthorIT :: (Monad m, Stream s m Char, Stream [Lexeme t] m y)
-            => LexIT s u m t -- ^ lexer: transform raw input stream into many tokens
-            -> LuthorT t u m a -- ^ parser: transform token stream into parsed data
-            -> IndentPolicy -- ^ what characters count as leading space and how they should be counted
-            -> [ParsecIT s u m ()] -- ^ a list of linear whitespace parsers
-            -> u
-            -> SourceName
-            -> s
-            -> m (Either ParseError a)
-runLuthorIT lexer parser policy ws u source input = do
-    e_lexResult <- runPIT (_wrap lexer) policy ws u source input
-    case e_lexResult of
-        Left err -> return $ Left err
-        Right (input', (u', _)) -> runPT parser u' source input'
-
-
-runLuthorI :: (Stream s Identity Char, Stream [Lexeme t] Identity y)
-           => LexI s u t -- ^ lexer: transform raw input stream into many tokens
-           -> Luthor t u a -- ^ parser: transform token stream into parsed data
-           -> IndentPolicy -- ^ what characters count as leading space and how they should be counted
-           -> [ParsecI s u ()] -- ^ a list of linear whitespace parsers
-           -> u
-           -> SourceName
-           -> s
-           -> Either ParseError a
-runLuthorI lexer parser policy ws u source input =
-    case runPI (_wrap lexer) policy ws u source input of
-        Left err -> Left err
-        Right (input', (u', _)) -> runP parser u' source input'
 
 
 {-| Wrap a normal parser into a parser for a 'Lexeme'.
@@ -195,18 +157,21 @@ satisfy p = tokenPrim _lexShow _lexUpdatePos _lexCheck
     _lexCheck (Lexeme _ x) | p x = Just x
     _lexCheck _ = Nothing
 
-unlex :: (Show a, Stream [Lexeme a] m (Lexeme a)) => (a -> Maybe b) -> LuthorT a u m b
-unlex f = fromJust . f <$> tokenPrim _lexShow _lexUpdatePos _lexCheck
+{- |Unpacks a payload from the 'Lexeme' stream and attempts to transform it.
+    If the transformation fails (evaluates to 'Nothing'), then this parser fails.
+-}
+unlexWith :: (Show a, Stream [Lexeme a] m (Lexeme a)) => (a -> Maybe b) -> LuthorT a u m b
+unlexWith f = fromJust . f <$> tokenPrim _lexShow _lexUpdatePos _lexCheck
     where
     _lexCheck (Lexeme _ x) = case f x of
         Just _ -> Just x
         Nothing -> Nothing
     _lexCheck _ = Nothing
 
-{-| Obtain a 'Lexeme' payload. Only fails at the end of the lexeme stream. -}
-anyLexeme :: (Show a, Stream [Lexeme a] m (Lexeme a))
+{-| Unpacks a payload from the 'Lexeme' stream. Only fails at the end of the lexeme stream. -}
+unlex :: (Show a, Stream [Lexeme a] m (Lexeme a))
           => LuthorT a u m a
-anyLexeme = tokenPrim _lexShow _lexUpdatePos _lexCheck
+unlex = tokenPrim _lexShow _lexUpdatePos _lexCheck
     where
     _lexCheck (Lexeme _ x) = Just x
     _lexCheck _ = Nothing

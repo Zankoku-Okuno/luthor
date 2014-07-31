@@ -1,3 +1,8 @@
+FIXME
+=====
+can't lex a dedent, esp. due to trying to detect dedents at the end of input
+	either write my own manyAccum, or send in an issue
+
 TODO
 ====
 regex to parser
@@ -5,6 +10,7 @@ regex to parser
 TEST
 ====
 nextline + dedent
+Lex module
 
 CLEANUP
 =======
