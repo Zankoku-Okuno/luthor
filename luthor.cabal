@@ -1,5 +1,5 @@
 name:                luthor
-version:             0.0.0
+version:             0.0.1
 stability:           experimental
 synopsis:            Tools for lexing and utilizing lexemes that integrate with Parsec.
 description:         Like parser combinators? Building a big parser? Save hundreds of
@@ -25,7 +25,7 @@ bug-reports:         https://github.com/Zankoku-Okuno/luthor/issues
 category:            Text, Language
 build-type:          Simple
 cabal-version:       >=1.8
-extra-source-files:  docs/*.md, docs/*.hs, docs/*.l
+extra-source-files:  changes.md, docs/*.md, docs/*.hs, docs/*.l
 
 library
   exposed-modules:    

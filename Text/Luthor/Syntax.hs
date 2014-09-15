@@ -370,7 +370,8 @@ rational = try $ do
 
     Only bases 10 and 16 are supported, and the base of the exponent
     is the same as the base of the significand. In base ten, the
-    exponent letter is @e@, and in base 16, it is @h@.
+    exponent letter is either @e@ or @p@, but in base 16, it must
+    be @p@ (since @e@ is already a headigit).
 
     Note that digits are required on both sides of the (hexa)decimal
     point, so neither @0.@ nor @.14@ are recognized.
@@ -383,8 +384,8 @@ scientific = try $ do
     dot
     mantissa <- numAfterPoint base
     exponent <- option 0 $ case base of
-        10 -> charI 'e' *> numInteger base
-        16 -> charI 'h' *> numInteger base
+        10 -> (charI 'e' <|> charI 'p') *> numInteger base
+        16 ->                charI 'p'  *> numInteger base
         _ -> error "unsupported base in Text.Luthor.Syntax.scientific: only 10 and 16 allowed"
     let timesExp = toRational base ^^ exponent
     return $ sign * (whole + mantissa) * timesExp
