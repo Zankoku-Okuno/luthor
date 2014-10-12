@@ -14,6 +14,8 @@ main = do
         , ((char 'a' `sepBy` char ' ') *> optional (char ' ')) `matches` "a a "
         , (anyChar `P.manyTill` string "-->") `fails` "part1 -- part2-->"
         , (anyChar `manyThru` string "-->") `matches` "part1 -- part2-->"
+        , (P.many (char 'a' <* char ',') <* char 'a') `fails` "a,a"
+        , (many (char 'a' <* char ',') <* char 'a') `matches` "a,a"
         -- * Choices
         , (string "foo" <||> string "fly") `matches` "foo"
         , (string "foo" <||> string "fly") `matches` "fly"

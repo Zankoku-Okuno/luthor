@@ -37,17 +37,22 @@
     * In Parsec, @anyChar \`manyTill\` string \"-->\" *> eof@ will fail on input
         @\"part1 -- part2-->\"@. Using this module's 'manyThru' will succeed with the same semantics.
         This module's 'manyTill' will not consume the @\"-->\"@.
+
+    * In Parsec, @many (char 'a' <* char ',') <* char 'a' <* eof@ will fail on input @a,a@.
+        Using this module's 'many' will succeed. Similar results hold for @many1@, @many_@, @many1_@,
+        @endBy@ and @endby1@.
     
     While we're at it, we've also re-exported applicative parsing functions and defined some of our
     own combinators that have been found useful. Applicative parsing is recommended over monadic
     parsing where it will suffice, so we'd rather eliminate the extra @Control.Applicative@ import.
-    Among the additional combinators defined here are 'dispatch', 'count', 'atLeast', 'atMost', 'manyNM',
+    Among the additional combinators defined here are 'dispatch', 'atLeast', 'atMost', 'manyNM',
     'chomp', and 'between2'.
 -}
 module Text.Luthor.Combinator (
     -- * Applicative Parsing
       (<$>), (<$$>), (<*>), (*>), (<*), (<**>), (<$)
     , pure
+    , void
     -- * Choices
     , (<||>), choice, dispatch
     , longestOf
@@ -76,6 +81,7 @@ module Text.Luthor.Combinator (
     , chainr, chainr1
     -- * Lookahead
     , lookAhead
+    , lookAhead_
     , notFollowedBy
     , atEndOfInput, endOfInput
     -- * Input Stream
@@ -85,7 +91,7 @@ module Text.Luthor.Combinator (
     , (P.<?>), expect
     , withPosition, withPositionEnd, withPositions
     -- * Re-exports
-    , P.try, (P.<|>), P.unexpected, void
+    , P.try, (P.<|>), P.unexpected
     ) where
 
 import qualified Text.Parsec.Prim as P
@@ -108,7 +114,7 @@ infixl 4 <$$>
 
 {-| Flipped '<$>'.
 
-    Great for parsing infixes, e.g. @addExpr = expr <$$> (+) <*> expr@.
+    Great for parsing infixes, e.g. @addExpr = expr \<$$\> (+) \<*\> expr@.
 -}
 (<$$>) :: Functor f => f a -> (a -> b) -> f b
 x <$$> f = f <$> x
@@ -177,7 +183,7 @@ optional :: Stream s m t => ParsecT s u m a -> ParsecT s u m (Maybe a)
 optional p = Just <$> p <||> pure Nothing
 {-| @optional_ p@ tries to parse @p@, but does not fail or consume input if @p@ fails.
     
-    This is like 'Text.Parsec.Combinator.optional', but the use of underscore is more idiomatic
+    This is like Parsec's Text.Parsec.Combinator.optional', but the use of underscore is more idiomatic
     for actions whose results are ignored.
 -}
 optional_ :: Stream s m t => ParsecT s u m a -> ParsecT s u m ()
@@ -204,9 +210,11 @@ manyOf = P.many . choice
 manyOf_ :: Stream s m t => [ParsecT s u m a] -> ParsecT s u m ()
 manyOf_ = many_ . choice
 
+-- | @many p@ applies the parser @p@ /zero/ or more times and accumulates the result.
 many :: Stream s m t => ParsecT s u m a -> ParsecT s u m [a]
 many = P.many . P.try
 
+-- | @many p@ applies the parser @p@ /one/ or more times and accumulates the result.
 many1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m [a]
 many1 = P.many1 . P.try
 
@@ -222,7 +230,7 @@ many_ = P.skipMany . P.try
 
 {-| @manyTill p end@ applies parser @p@ /zero/ or more times until
     parser @end@ succeeds. Returns the list of values returned by @p@.
-    The @end@ parse /does not/ consume input, c.f. 'manyThru'.
+    The @end@ parser /does not/ consume input, c.f. 'manyThru'.
     This parser can be used to scan comments:
    
     >  simpleComment = do { string "//"
@@ -238,7 +246,7 @@ manyTill p end = p `P.manyTill` lookAhead end
 
 {-| @manyThru p end@ applies parser @p@ /zero/ or more times until
     parser @end@ succeeds. Returns the list of values returned by @p@.
-    The @end@ parse /does/ consume input, c.f. 'manyTill', but is not
+    The @end@ parser /does/ consume input, c.f. 'manyTill', but is not
     included in the result.
     This parser can be used to scan comments:
    
@@ -253,14 +261,17 @@ manyTill p end = p `P.manyTill` lookAhead end
 manyThru :: Stream s m t => ParsecT s u m a -> ParsecT s u m end -> ParsecT s u m [a]
 manyThru p end = p `P.manyTill` P.try end
 
-{-| @chomp p x@ will parse @p@, then throw away a subsequent
-    parse by @x@ provided it succeeds.
+{-| @chomp p x@ will parse @p@, then, provided @x@ succeeds, discard a
+    subsequent parse of @x@.
     This combinator will only fail when @p@ fails, not when @x@ does.
 -}
 chomp :: Stream s m t => ParsecT s u m a -> ParsecT s u m trash -> ParsecT s u m a
 chomp p trash = p <* optional_ trash
 
--- | @between2 p q@ is equivalent to @'between' p p q@
+{-| @between2 p q@ is equivalent to @'between' p p q@
+
+    > double_quoted = between2 (char '"')
+-}
 between2 :: Stream s m t => ParsecT s u m around -> ParsecT s u m a -> ParsecT s u m a
 between2 p = P.between p p
 
@@ -278,22 +289,20 @@ sepBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m 
 sepBy1 p sep = p <$$> (:) <*> (many $ sep *> p)
 
 -- | @sepEndBy p sep@ parses /zero/ or more occurrences of @p@,
--- separated and optionally ended by @sep@, ie. haskell style
--- statements. Returns a list of values returned by @p@.
+-- separated and optionally ended by @sep@.
 --
 -- >  haskellStatements  = haskellStatement `sepEndBy` semi
 sepEndBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 sepEndBy p sep = option [] $ sepEndBy1 p sep
 
 {-| @sepEndBy1 p sep@ parses /one/ or more occurrences of @p@,
-    separated and optionally ended by @sep@. Returns a list of values
-    returned by @p@.
+    separated and optionally ended by @sep@.
 -}
 sepEndBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 sepEndBy1 p sep = p <$$> (:) <*> option [] (sep *> sepEndBy p sep)
 
 {-| @endBy p sep@ parses /zero/ or more occurrences of @p@, seperated
-    and ended by @sep@. Returns a list of values returned by @p@.
+    and ended by @sep@.
     
     >   cStatements  = cStatement `endBy` semi
 -}
@@ -301,38 +310,34 @@ endBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [
 endBy p sep = many $ p <* sep
 
 {-| @endBy1 p sep@ parses /one/ or more occurrences of @p@, seperated
-    and ended by @sep@. Returns a list of values returned by @p@.
+    and ended by @sep@.
 -}
 endBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 endBy1 p sep = many1 $ p <* sep
 
 {-| @sepAroundBy p sep@ parses /zero/ or more occurrences of @p@,
-    separated and optionally starting with and ended by @sep@. Returns
-    a list of values returned by @p@. 
+    separated and optionally starting with and ended by @sep@.
 -}
 sepAroundBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 sepAroundBy p sep = option [] $ sepAroundBy1 p sep
 
 {-| @sepAroundBy1 p sep@ parses /one/ or more occurrences of @p@,
-    separated and optionally starting with and ended by @sep@. Returns
-    a list of values returned by @p@. 
+    separated and optionally starting with and ended by @sep@.
 -}
 sepAroundBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
 sepAroundBy1 p sep = optional_ sep *> sepEndBy1 p sep
 
 
-{-| @chainl p op x@ parses /zero/ or more occurrences of @p@,
+{-| @chainl p op z@ parses /zero/ or more occurrences of @p@,
     separated by @op@. Returns a value obtained by a /left/ associative
     application of all functions returned by @op@ to the values returned
-    by @p@. If there are zero occurrences of @p@, the value @x@ is
-    returned.
-    
-    C.f. 'chainr'
+    by @p@. If there are zero occurrences of @p@, the value @z@ is
+    returned. C.f. 'chainr'.
 -}
 chainl :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> a -> ParsecT s u m a
 chainl p op zero = chainl1 p op P.<|> pure zero
 
-{-| @chainl1 p op x@ parses /one/ or more occurrences of @p@,
+{-| @chainl1 p op@ parses /one/ or more occurrences of @p@,
     separated by @op@ Returns a value obtained by a /left/ associative
     application of all functions returned by @op@ to the values returned
     by @p@. This parser can for example be used to eliminate left
@@ -348,29 +353,25 @@ chainl p op zero = chainl1 p op P.<|> pure zero
     >  addop   =   do{ symbol "+"; return (+) }
     >          <|> do{ symbol "-"; return (-) }
     
-    C.f. 'chainr1'
+    C.f. 'chainr1'.
 -}
 chainl1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> ParsecT s u m a
 chainl1 p op = p >>= rest
     where rest x = (op <*> pure x <*> p >>= rest) <||> pure x
 
-{-| @chainr p op x@ parses /zero/ or more occurrences of @p@,
+{-| @chainr p op z@ parses /zero/ or more occurrences of @p@,
     separated by @op@ Returns a value obtained by a /right/ associative
     application of all functions returned by @op@ to the values returned
-    by @p@. If there are no occurrences of @p@, the value @x@ is
-    returned.
-    
-    C.f. 'chainl'
+    by @p@. If there are no occurrences of @p@, the value @z@ is
+    returned. C.f. 'chainl'.
 -}
 chainr :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> a -> ParsecT s u m a
 chainr p op zero = chainr1 p op P.<|> pure zero
 
-{-| @chainr1 p op x@ parses /one/ or more occurrences of @p@,
+{-| @chainr1 p op@ parses /one/ or more occurrences of @p@,
     separated by @op@ Returns a value obtained by a /right/ associative
     application of all functions returned by @op@ to the values returned
-    by @p@.
-    
-    C.f. 'chainl1'
+    by @p@. C.f. 'chainl1'.
 -}
 chainr1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> ParsecT s u m a
 chainr1 p op = p >>= rest
@@ -381,7 +382,7 @@ chainr1 p op = p >>= rest
 lookAhead :: Stream s m t => ParsecT s u m a -> ParsecT s u m a
 lookAhead = P.lookAhead . P.try
 
--- |As @lookAhead@, but throw away result.
+-- |As 'lookAhead', but throw away result.
 lookAhead_  :: Stream s m t => ParsecT s u m a -> ParsecT s u m ()
 lookAhead_ = void . lookAhead
 

@@ -36,6 +36,7 @@ module Text.Luthor.Syntax (
     , xDigit, stringToInteger, stringToMantissa
     -- ** Numbers
     , integer, rational, scientific
+    , hexOctet
     -- ** Character Escapes
     , letterEsc
     , decimalEsc
@@ -50,7 +51,7 @@ module Text.Luthor.Syntax (
     -- * Character Classes
     , charClass
     , uniPrint, uniPrintMinus
-    , uniIdClass, uniIdClassMinus
+    , uniId, uniIdMinus
     ) where
 
 import Data.Ratio
@@ -91,9 +92,11 @@ stringI str = try $ mapM charI str
 aChar :: (Stream s m Char) => (Char -> Bool) -> ParsecT s u m Char
 aChar = satisfy
 
+-- | Parse /zero/ or more characters satisfying the predicate, c.f. 'many1Char'.
 manyChar :: (Stream s m Char) => (Char -> Bool) -> ParsecT s u m String
 manyChar = many . aChar
 
+-- | Parse /one/ or more characters satisfying the predicate, c.f. 'manyChar'.
 many1Char :: (Stream s m Char) => (Char -> Bool) -> ParsecT s u m String
 many1Char = many1 . aChar
 
@@ -272,8 +275,8 @@ _dentation nl (Convert table) = try $ do
 {-| Parse one or more characters that satisfy a predicate, but with additional
     restrictions on the first character parsed.
 
-    This is useful for identifiers (such as @/[a-zA-Z_][a-zA-Z_0-9]*/@), certain kinds of
-    numbers (such as @/[1-9][0-9]*/@), and possibly other things.
+    This is especially useful for identifiers (such as @\/[a-zA-Z_][a-zA-Z_0-9]*\/@)
+    and certain kinds of numbers (such as @\/[1-9][0-9]*\/@).
 
 @
 identifier = 'charClass' \"a-zA-Z0-9_\" \`many1Not\` 'charClass' \"0-9\"
@@ -334,7 +337,7 @@ numBase = P.option 10 . dispatch $ zip
 numNatural :: (Stream s m Char) => Int -> ParsecT s u m Integer
 numNatural base = stringToInteger base <$> xDigits base
 
-{-| Parse many digits in the passed base and return the appropriate ratio. -}
+{-| Parse many digits in the passed base and return the appropriate rational. -}
 numAfterPoint :: (Stream s m Char) => Int -> ParsecT s u m Rational
 numAfterPoint base = stringToMantissa base <$> xDigits base
 
@@ -357,20 +360,14 @@ numInteger base = numOptSign <$$> (*) <*> numNatural base
 
 {-| Parse an integer: optional sign, then a number of digits.
     Bases 10, 16, 8 and 2 are supported with appropriate
-    prefixes before the digits.
-
-    No prefix is base 10.
-    @0x@ case-insensitive is base 16.
-    @0o@ case-insensitive is base 8.
-    @0n@ case-insensitive is base 2.
+    prefixes as in 'numBase' before the digits.
 -}
 integer :: (Stream s m Char) => ParsecT s u m Integer
 integer = try $ numOptSign <$$> (*) <*> (numNatural =<< numBase)
 
 {-| Parse a rational number: an optional sign, then two sequences
     of digits separated by a slash. Return the ratio of the appropriate
-    sign between the two numbers. Bases 10, 16, 8 and 2 are supported as
-    in 'integer'.
+    sign between the two numbers. Bases 10, 16, 8 and 2 are supported.
 -}
 rational :: (Stream s m Char) => ParsecT s u m Rational
 rational = try $ do
@@ -409,6 +406,9 @@ scientific = try $ do
 
 --TODO scientific notation allowing 0. and .0
 
+-- |Parse a two-digit hexadacimal number.
+hexOctet :: (Stream s m Char, Integral n) => ParsecT s u m n
+hexOctet = fromIntegral . stringToInteger 16 <$> count 2 P.hexDigit
 
 -- |Parse a backslash and another character; use the passed table to
 --  determine the returned character.
@@ -446,9 +446,7 @@ decimalEsc = try $ do
 -- |Escape sequences for bytes (including ASCII).
 --  Represented by a backslash + two hexdigits.
 asciiEsc :: (Stream s m Char) => ParsecT s u m Char
-asciiEsc = try $ do
-    stringI "\\x"
-    chr . stringToInteger 16 <$> P.count 2 P.hexDigit
+asciiEsc = try $ stringI "\\x" *> (chr <$> hexOctet)
 
 -- |Escape sequences in the Unicode Basic Multilingual Plane (BMP). C.f. 'hiUniEsc'.
 --  Represented by a backslash+lowercase 'u' followed by four hexdigits.
@@ -491,13 +489,13 @@ sqString = between2 (char '\'') (P.many $ normal <|> escape)
 
 {-| Parse a double-quoted string with common backslash escape sequences.
     
-    * We use 'letterEsc' with the passed table of contents.
+    * We use 'letterEsc' with the passed table of contents. There is no default table.
     
     * Also, 'decimalEsc', 'asciiEsc' and 'uniEsc' are allowed.
     
     * Further, the @\\&@ stands for no character: it literally adds nothing
         to the string in which it appears, but it can be useful as in
-        @\\127\\&0@.
+        @\"\\127\\&0\"@.
     
     * Finally, lines can be folded with a backslash-newline-backslash, ignoring
         any 'lws' between the newline and the second backslash. This is preferred
@@ -616,8 +614,8 @@ uniPrintMinus p c = uniPrint c && not (p c)
     * Does not Accept: Space, LineSeparator, ParagraphSeparator, Control,
         Format, Surrogate, PrivateUse, NotAssigned
 -}
-uniIdClass :: Char -> Bool
-uniIdClass c = case generalCategory c of
+uniId :: Char -> Bool
+uniId c = case generalCategory c of
     Space -> False
     LineSeparator -> False
     ParagraphSeparator -> False
@@ -628,10 +626,10 @@ uniIdClass c = case generalCategory c of
     NotAssigned -> False
     _ -> True --Letter, Mark, Number, Punctuation/Quote, Symbol
 
--- |Accepts characters from 'uniIdClass', except those which 
+-- |Accepts characters from 'uniId', except those which 
 --  satisfy the passed predicate.
-uniIdClassMinus :: (Char -> Bool) -> (Char -> Bool)
-uniIdClassMinus p c = uniIdClass c && not (p c)
+uniIdMinus :: (Char -> Bool) -> (Char -> Bool)
+uniIdMinus p c = uniId c && not (p c)
 
 
 instance (IsString a, Stream s m Char) => IsString (ParsecT s u m a) where

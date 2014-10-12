@@ -10,3 +10,5 @@ TODO date tbd
  * Fixed failure-to-backtrack bug in `Text.Luthor.Combinators.many` etal.
  * Added `Text.Luthor.Syntax.ellipsis2` and `.ellipsis3`.
  * Added `Text.Luthor.Syntax.manyChar` and `.many1Char`.
+ * Added `Text.Luthor.Syntax.hexOctet`.
+ * Changed `Text.Luthor.Syntax.uniIdClass` to `.uniId`, and likewise for `.uniIdMinus`.
