@@ -286,7 +286,7 @@ sepBy p sep = option [] $ sepBy1 p sep
 -- | @sepBy1 p sep@ parses /one/ or more occurrences of @p@, separated
 -- by @sep@. Returns a list of values returned by @p@. 
 sepBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
-sepBy1 p sep = p <$$> (:) <*> (many $ sep *> p)
+sepBy1 p sep = p <$$> (:) <*> many (sep *> p)
 
 -- | @sepEndBy p sep@ parses /zero/ or more occurrences of @p@,
 -- separated and optionally ended by @sep@.

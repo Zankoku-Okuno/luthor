@@ -199,24 +199,16 @@ getIndentDepth = do
 
 -- |Run the passed parser with indentation enabled.
 withIndentation :: (Stream s m t) => ParsecIT s u m a -> ParsecIT s u m a
-withIndentation p = do
-    (u, s) <- P.getState
-    let enabled0 = _enabled s
-        s' = s { _enabled = True }
-    try $ do
-        P.putState (u, s')
-        result <- p
-        (u, s) <- P.getState
-        let s' = s { _enabled = enabled0 }
-        P.putState (u, s')
-        return result
+withIndentation = _withIndentationSet True
 
 -- |Run the passed parser with indentation disabled.
 withoutIndentation :: (Stream s m t) => ParsecIT s u m a -> ParsecIT s u m a
-withoutIndentation p = do
+withoutIndentation = _withIndentationSet False
+
+_withIndentationSet yn p = do
     (u, s) <- P.getState
     let enabled0 = _enabled s
-        s' = s { _enabled = False }
+        s' = s { _enabled = yn }
     try $ do
         P.putState (u, s')
         result <- p
