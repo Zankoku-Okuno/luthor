@@ -63,7 +63,7 @@ import Control.Monad.Identity
 
 import Text.Parsec.Error
 import Text.Parsec.Pos
-import Text.Parsec.Prim
+import Text.Parsec.Prim hiding (many)
 import Text.Parsec.Combinator (eof)
 import Text.Luthor.Combinator
 

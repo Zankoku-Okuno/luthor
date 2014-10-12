@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-| Parsec combinators are not composable by default. The idea is that this increases efficiency
     by eliminating unnecessary backtracking. The practical problem with this approach is that it
     is difficult to determine exactly where backtracking really is necessary and insert the needed
@@ -35,7 +36,7 @@
 
     * In Parsec, @anyChar \`manyTill\` string \"-->\" *> eof@ will fail on input
         @\"part1 -- part2-->\"@. Using this module's 'manyThru' will succeed with the same semantics.
-        This modules 'manyTill' will not consume the @\"-->\"@.
+        This module's 'manyTill' will not consume the @\"-->\"@.
     
     While we're at it, we've also re-exported applicative parsing functions and defined some of our
     own combinators that have been found useful. Applicative parsing is recommended over monadic
@@ -53,7 +54,7 @@ module Text.Luthor.Combinator (
     -- ** Zero or One
     , option, optional, optional_
     -- * Many
-    , P.many, P.many1
+    , many, many1
     , many_, many1_
     , P.count, atLeast, atMost, manyNM
     , manyOf, manyOf_
@@ -81,13 +82,12 @@ module Text.Luthor.Combinator (
     , allInput
     , withRemainingInput
     -- * Additional Data
-    , (<?>), expect
+    , (P.<?>), expect
     , withPosition, withPositionEnd, withPositions
     -- * Re-exports
-    , try, (<|>), P.unexpected, void
+    , P.try, (P.<|>), P.unexpected, void
     ) where
 
-import Text.Parsec.Prim (ParsecT, Stream, try, (<|>), (<?>))
 import qualified Text.Parsec.Prim as P
 import qualified Text.Parsec.Combinator as P
 import Text.Parsec.Pos
@@ -95,15 +95,21 @@ import Text.Parsec.Pos
 import Data.Function (on)
 import Data.Maybe
 import Data.List
-import Control.Applicative hiding ((<|>), optional)
+import Control.Applicative hiding ((<|>), optional, many)
 import Control.Monad
 
+--because apparently, methods are imported whether you like it or not?
+type ParsecT = P.ParsecT
+type Stream = P.Stream
 
 infixl 3 <||>
 infixl 4 <$$>
 
 
-{-| Flipped '<$>'. -}
+{-| Flipped '<$>'.
+
+    Great for parsing infixes, e.g. @addExpr = expr <$$> (+) <*> expr@.
+-}
 (<$$>) :: Functor f => f a -> (a -> b) -> f b
 x <$$> f = f <$> x
 
@@ -115,14 +121,14 @@ x <$$> f = f <$> x
     the input @\"fly\"@, whereas its Parsec counterpart will unintuitively fail.
 -}
 (<||>) :: Stream s m t => ParsecT s u m a -> ParsecT s u m a -> ParsecT s u m a
-p <||> q = try p <|> q
+p <||> q = P.try p P.<|> q
 
 -- | @choice ps@ tries to apply the parsers in the list @ps@ in order,
 -- until one of them succeeds. Returns the value of the succeeding
 -- parser. Unlike the Parsec version, this one ensures that parsers
 -- do not consume input if they fail.
 choice :: Stream s m t => [ParsecT s u m a] -> ParsecT s u m a
-choice = P.choice . map try
+choice = P.choice . map P.try
 
 {-| Given a map of parsers to parsers, attempt each key parser until one succeeds,
     then perform the value parser. Return the result of the value parser.
@@ -198,24 +204,30 @@ manyOf = P.many . choice
 manyOf_ :: Stream s m t => [ParsecT s u m a] -> ParsecT s u m ()
 manyOf_ = many_ . choice
 
+many :: Stream s m t => ParsecT s u m a -> ParsecT s u m [a]
+many = P.many . P.try
+
+many1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m [a]
+many1 = P.many1 . P.try
+
 -- | @many1_ p@ applies the parser @p@ /one/ or more times, skipping
 -- its result.
 many1_ :: Stream s m t => ParsecT s u m a -> ParsecT s u m ()
-many1_ = P.skipMany1
+many1_ = P.skipMany1 . P.try
 
 -- | @many1_ p@ applies the parser @p@ /zero/ or more times, skipping
 -- its result.
 many_ :: Stream s m t => ParsecT s u m a -> ParsecT s u m ()
-many_ = P.skipMany
+many_ = P.skipMany . P.try
 
 {-| @manyTill p end@ applies parser @p@ /zero/ or more times until
     parser @end@ succeeds. Returns the list of values returned by @p@.
     The @end@ parse /does not/ consume input, c.f. 'manyThru'.
     This parser can be used to scan comments:
    
-    >  simpleComment = do{ string "//"
-    >                    ; anyChar `manyThru` char '\n'
-    >                    }
+    >  simpleComment = do { string "//"
+    >                     ; anyChar `manyTill` char '\n'
+    >                     }
    
     Note that despite the overlapping parsers @anyChar@ and @char \'\\n\'@,
     there is never a need to add a 'try': the @end@ parser does not consume
@@ -226,19 +238,20 @@ manyTill p end = p `P.manyTill` lookAhead end
 
 {-| @manyThru p end@ applies parser @p@ /zero/ or more times until
     parser @end@ succeeds. Returns the list of values returned by @p@.
-    The @end@ parse /does/ consume input, c.f. 'manyTill'.
+    The @end@ parse /does/ consume input, c.f. 'manyTill', but is not
+    included in the result.
     This parser can be used to scan comments:
    
-    >  simpleComment = do{ string "<!--"
-    >                    ; anyChar `manyThru` string "-->"
-    >                    }
+    >  simpleComment = do { string "<!--"
+    >                     ; anyChar `manyThru` string "-->"
+    >                     }
    
     Note that despite the overlapping parsers @anyChar@ and @string \"--\>\"@,
     there is no need to add a 'try': the @end@ parser does not consume input
     on failure.
 -}
 manyThru :: Stream s m t => ParsecT s u m a -> ParsecT s u m end -> ParsecT s u m [a]
-manyThru p end = p `P.manyTill` try end
+manyThru p end = p `P.manyTill` P.try end
 
 {-| @chomp p x@ will parse @p@, then throw away a subsequent
     parse by @x@ provided it succeeds.
@@ -262,7 +275,7 @@ sepBy p sep = option [] $ sepBy1 p sep
 -- | @sepBy1 p sep@ parses /one/ or more occurrences of @p@, separated
 -- by @sep@. Returns a list of values returned by @p@. 
 sepBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
-sepBy1 p sep = p <$$> (:) <*> (many . try $ sep *> p)
+sepBy1 p sep = p <$$> (:) <*> (many $ sep *> p)
 
 -- | @sepEndBy p sep@ parses /zero/ or more occurrences of @p@,
 -- separated and optionally ended by @sep@, ie. haskell style
@@ -285,13 +298,13 @@ sepEndBy1 p sep = p <$$> (:) <*> option [] (sep *> sepEndBy p sep)
     >   cStatements  = cStatement `endBy` semi
 -}
 endBy :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
-endBy p sep = P.many $ p <* sep
+endBy p sep = many $ p <* sep
 
 {-| @endBy1 p sep@ parses /one/ or more occurrences of @p@, seperated
     and ended by @sep@. Returns a list of values returned by @p@.
 -}
 endBy1 :: Stream s m t => ParsecT s u m a -> ParsecT s u m sep -> ParsecT s u m [a]
-endBy1 p sep = P.many1 $ p <* sep
+endBy1 p sep = many1 $ p <* sep
 
 {-| @sepAroundBy p sep@ parses /zero/ or more occurrences of @p@,
     separated and optionally starting with and ended by @sep@. Returns
@@ -317,7 +330,7 @@ sepAroundBy1 p sep = optional_ sep *> sepEndBy1 p sep
     C.f. 'chainr'
 -}
 chainl :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> a -> ParsecT s u m a
-chainl p op zero = chainl1 p op <|> pure zero
+chainl p op zero = chainl1 p op P.<|> pure zero
 
 {-| @chainl1 p op x@ parses /one/ or more occurrences of @p@,
     separated by @op@ Returns a value obtained by a /left/ associative
@@ -350,7 +363,7 @@ chainl1 p op = p >>= rest
     C.f. 'chainl'
 -}
 chainr :: Stream s m t => ParsecT s u m a -> ParsecT s u m (a -> a -> a) -> a -> ParsecT s u m a
-chainr p op zero = chainr1 p op <|> pure zero
+chainr p op zero = chainr1 p op P.<|> pure zero
 
 {-| @chainr1 p op x@ parses /one/ or more occurrences of @p@,
     separated by @op@ Returns a value obtained by a /right/ associative
@@ -366,7 +379,11 @@ chainr1 p op = p >>= rest
 
 {-| @lookAhead p@ parses @p@ without consuming any input, even if @p@ fails. -}
 lookAhead :: Stream s m t => ParsecT s u m a -> ParsecT s u m a
-lookAhead = P.lookAhead . try
+lookAhead = P.lookAhead . P.try
+
+-- |As @lookAhead@, but throw away result.
+lookAhead_  :: Stream s m t => ParsecT s u m a -> ParsecT s u m ()
+lookAhead_ = void . lookAhead
 
 {-| @notFollowedBy p q@ parses @p@, but only when @q@ will fail immediately
     after parsing @p@. Parsing @q@ never consumes input, and if this
@@ -381,7 +398,7 @@ lookAhead = P.lookAhead . try
     >  keywordLet = string "let" `notFollowedBy` alphaNum
 -}
 notFollowedBy :: (Stream s m t, Show trash) => ParsecT s u m a -> ParsecT s u m trash -> ParsecT s u m a
-notFollowedBy p la = try $ p <* P.notFollowedBy la
+notFollowedBy p la = P.try $ p <* P.notFollowedBy la
 
 -- |Returns 'True' if there is no input left, 'False' if there is.
 atEndOfInput :: (Stream s m t, Show t) => ParsecT s u m Bool
@@ -403,7 +420,7 @@ withRemainingInput p = p <$$> (,) <*> P.getInput
 
 -- |Flipped '<?>'.
 expect :: Stream s m t => String -> ParsecT s u m a -> ParsecT s u m a
-expect = flip (<?>)
+expect = flip (P.<?>)
 
 {-| Annotate the return value of the passed parser with the position
     just before parsing.

@@ -26,6 +26,7 @@ main = do
         , (optional_ (string "foo") *> string "fly") `matches` "foofly"
         , (optional_ (string "foo") *> string "fly") `matches` "fly"
         -- * Many
+        , (many (char 'a' <* char ',') *> char 'a') `matches` "a,a,a"
         , atLeast 3 (char 'a') `fails` "aa"
         , atLeast 3 (char 'a') `matches` "aaa"
         , atLeast 3 (char 'a') `matches` "aaaa"
@@ -62,6 +63,7 @@ main = do
         , ((char 'a' `endBy` char ' ')) `matches` "a "
         , ((char 'a' `endBy` char ' ')) `matches` ""
         , ((char 'a' `endBy` char ' ')) `fails` " "
+        , ((string "aa" `endBy` char ',') *> (char 'a' `endBy` char ',')) `matches` "aa,a,"
         , (char 'a' `sepAroundBy` char ' ') `matches` "a a a"
         , (char 'a' `sepAroundBy` char ' ') `matches` "a a a "
         , (char 'a' `sepAroundBy` char ' ') `matches` " a a a "

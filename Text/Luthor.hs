@@ -17,7 +17,7 @@ module Text.Luthor (
     , sourceName, sourceLine, sourceColumn
     ) where
 
-import Text.Parsec.Prim hiding (lookAhead)
+import Text.Parsec.Prim hiding (lookAhead, many)
 import Text.Luthor.Combinator
 
 import Text.Parsec.Error (ParseError, errorPos)

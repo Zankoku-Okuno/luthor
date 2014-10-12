@@ -7,6 +7,8 @@
 module Text.Luthor.Syntax (
     -- * Basic Characters and Strings
       char, string, charI, stringI
+    , P.anyChar, P.oneOf, P.noneOf
+    , aChar, manyChar, many1Char
     -- ** Common Classes
     , upAlpha, loAlpha, alpha
     , digit, P.hexDigit, P.octDigit, binDigit
@@ -15,6 +17,7 @@ module Text.Luthor.Syntax (
     -- ** Common Special Literals
     , cr, lf, sp, ht, sq, dq
     , colon, semicolon, dot, comma
+    , ellipsis2, ellipsis3
     , bsEsc
     , yes, no, yesno
     -- * Programming Idioms
@@ -48,8 +51,6 @@ module Text.Luthor.Syntax (
     , charClass
     , uniPrint, uniPrintMinus
     , uniIdClass, uniIdClassMinus
-    -- * Re-exports
-    , aChar, P.anyChar, P.oneOf, P.noneOf
     ) where
 
 import Data.Ratio
@@ -84,6 +85,17 @@ charI c = expect [toLower c] . expect [toUpper c] . satisfy $ (== toLower c) . t
 --  Normalized to lowercase.
 stringI :: (Stream s m Char) => String -> ParsecT s u m String
 stringI str = try $ mapM charI str
+
+-- |Parse a single char when it satisfies the predicate.
+--  Fails when the next input character does not satisfy the predicate.
+aChar :: (Stream s m Char) => (Char -> Bool) -> ParsecT s u m Char
+aChar = satisfy
+
+manyChar :: (Stream s m Char) => (Char -> Bool) -> ParsecT s u m String
+manyChar = many . aChar
+
+many1Char :: (Stream s m Char) => (Char -> Bool) -> ParsecT s u m String
+many1Char = many1 . aChar
 
 
 -- |Rule `UPALPHA` from RFC2616 §2.2
@@ -149,6 +161,12 @@ dot = expect "dot" . void $ char '.'
 -- |A comma (,)
 comma :: (Stream s m Char) => ParsecT s u m ()
 comma = expect "comma" . void $ char ','
+-- |Two dots (..)
+ellipsis2 :: (Stream s m Char) => ParsecT s u m ()
+ellipsis2 = void $ string ".."
+-- |Three dots (...)
+ellipsis3 :: (Stream s m Char) => ParsecT s u m ()
+ellipsis3 = void $ string "..."
 
 -- |A backslash-escape: backslash followed by a single character
 --  satisfying the predicate.
@@ -368,10 +386,10 @@ rational = try $ do
     finally an optional exponent, which is an exponent letter, an
     optional sign and finally one or more digits in the same base.
 
-    Only bases 10 and 16 are supported, and the base of the exponent
-    is the same as the base of the significand. In base ten, the
-    exponent letter is either @e@ or @p@, but in base 16, it must
-    be @p@ (since @e@ is already a headigit).
+    The base of the exponent is the same as the base of the
+    significand. In base ten, the exponent letter is either @e@ or
+    @p@, but in other bases, it must be @p@ (since @e@ is already
+    a hexdigit).
 
     Note that digits are required on both sides of the (hexa)decimal
     point, so neither @0.@ nor @.14@ are recognized.
@@ -379,14 +397,13 @@ rational = try $ do
 scientific :: (Stream s m Char) => ParsecT s u m Rational
 scientific = try $ do
     sign <- toRational <$> numOptSign
-    base <- option 10 $ 16 <$ stringI "0x"
+    base <- numBase
     whole <- toRational <$> numNatural base
     dot
     mantissa <- numAfterPoint base
     exponent <- option 0 $ case base of
         10 -> (charI 'e' <|> charI 'p') *> numInteger base
-        16 ->                charI 'p'  *> numInteger base
-        _ -> error "unsupported base in Text.Luthor.Syntax.scientific: only 10 and 16 allowed"
+        _ ->                 charI 'p'  *> numInteger base
     let timesExp = toRational base ^^ exponent
     return $ sign * (whole + mantissa) * timesExp
 
@@ -538,10 +555,6 @@ nestingComment start end = do
     text = P.anyChar `manyTill` (string start <|> string end)
 
 
--- |Parse a single char when it satisfies the predicate.
---  Fails when the next input character does not satisfy the predicate.
-aChar :: (Stream s m Char) => (Char -> Bool) -> ParsecT s u m Char
-aChar = satisfy
 
 {-| Match any character in a set.
     

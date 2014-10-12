@@ -2,6 +2,11 @@ FIXME
 =====
 can't lex a dedent, esp. due to trying to detect dedents at the end of input
 	either write my own manyAccum, or send in an issue
+documentation links to Parsec aren't resolving on hackage
+
+I noticed lots of typos in docs
+
+
 
 TODO
 ====
@@ -11,6 +16,8 @@ TEST
 ====
 nextline + dedent
 Lex module
+
+make sure anything re-exported from Parsec actually works, even when passed a parser of the form (p1 *> p2), and p1 succeeds but p2 fails
 
 CLEANUP
 =======

@@ -79,6 +79,8 @@ main = do
         , scientific `parses` "0x0.f" $ 15%16
         , scientific `matches` "-0x1fda.f00dp7a"
         , scientific `matches` "-0x1fda.0P-7a"
+        , scientific `matches` "-0o135.02P-7"
+        , scientific `matches` "-0b100.101P-1011"
         -- ** Character Escapes
         , many (letterEsc $ zip "ane" "\a\n\27") `parses` "\\a\\n\\e" $ "\a\n\27"
         , many decimalEsc `parses` "\\51\\87\\0" $ "\51\87\0"
