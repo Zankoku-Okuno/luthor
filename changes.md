@@ -1,8 +1,8 @@
 Change Log
 ==========
 
-TODO date tbd
--------------
+v0.0.1 -- 2014-10-12
+--------------------
  * `Text.Luthor.Syntax.scientific`: Hexadecimal notation now uses `p` instead of `h`.
    Hopefully this is easier to read.
    Decimal notation can also use `p`.
@@ -12,3 +12,7 @@ TODO date tbd
  * Added `Text.Luthor.Syntax.manyChar` and `.many1Char`.
  * Added `Text.Luthor.Syntax.hexOctet`.
  * Changed `Text.Luthor.Syntax.uniIdClass` to `.uniId`, and likewise for `.uniIdMinus`.
+
+v0.0.2 -- TODO tbd
+------------------
+ * `Text.Luthor.Indent`: Removed `Text.Parsec.Prim.many` export

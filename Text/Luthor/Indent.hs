@@ -41,7 +41,7 @@ module Text.Luthor.Indent (
     , sourceName, sourceLine, sourceColumn
     ) where
 
-import Text.Parsec.Prim hiding (lookAhead, getState, putState, modifyState)
+import Text.Parsec.Prim hiding (lookAhead, getState, putState, modifyState, many)
 import Text.Parsec.Error (ParseError, errorPos)
 import Text.Parsec.Pos ( SourcePos
                        , SourceName, Line, Column

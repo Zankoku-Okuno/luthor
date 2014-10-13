@@ -5,6 +5,10 @@ import Text.Luthor
 import qualified Text.Parsec as P
 import Text.Parsec.Char (string, char, anyChar, digit)
 
+--regression tests that these modules are compatible
+import Text.Luthor.Indent
+import Text.Luthor.Lex
+
 main = do
     results <- sequence [ 
         --Examples in docs
