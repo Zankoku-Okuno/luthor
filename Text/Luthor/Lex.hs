@@ -58,7 +58,7 @@ module Text.Luthor.Lex (
     ) where
 
 import Data.Maybe
-import Control.Monad
+
 import Control.Monad.Identity
 
 import Text.Parsec.Error
@@ -183,6 +183,7 @@ endOfLexemes = expect "end of input" $ do
     case t of
         (Lexeme _ x:_) -> unexpected $ show x
         (EndOfLexemes _:_) -> return ()
+        [] -> return ()
 
 {-| Detect whether the parser is at the end of the lexeme stream
     without consuming input.
@@ -191,8 +192,9 @@ isAtEnd :: (Monad m) => LuthorT a u m Bool
 isAtEnd = do
     t <- getInput
     return $ case t of
-        (Lexeme _ x:_) -> False
+        (Lexeme _ _:_) -> False
         (EndOfLexemes _:_) -> True
+        [] -> True
 
 
 _lexShow :: (Show a) => Lexeme a -> String

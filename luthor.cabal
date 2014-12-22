@@ -40,24 +40,25 @@ library
     Text.Luthor.Syntax
     Text.Luthor.Indent
   other-modules:       
-  build-depends:       base ==4.6.*,
+  build-depends:       base >=4.6,
                        mtl ==2.*,
-                       parsec ==3.*
+                       parsec ==3.*,
+                       transformers >= 0.3
 
 test-suite test-combinator
     type:       exitcode-stdio-1.0
     main-is:    test/combinator.hs
-    build-depends: base ==4.6.*, mtl ==2.*, parsec ==3.*
+    build-depends: base >=4.6, mtl ==2.*, parsec ==3.*
 
 test-suite test-syntax
     type:       exitcode-stdio-1.0
     main-is:    test/syntax.hs
-    build-depends: base ==4.6.*, mtl ==2.*, parsec ==3.*
+    build-depends: base >=4.6, mtl ==2.*, parsec ==3.*
 
 test-suite test-indent
     type:       exitcode-stdio-1.0
     main-is:    test/indent.hs
-    build-depends: base ==4.6.*, mtl ==2.*, parsec ==3.*
+    build-depends: base >=4.6, mtl ==2.*, parsec ==3.*
 
 source-repository head
   type: git

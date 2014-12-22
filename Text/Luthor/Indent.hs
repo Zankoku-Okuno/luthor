@@ -42,19 +42,12 @@ module Text.Luthor.Indent (
     ) where
 
 import Text.Parsec.Prim hiding (lookAhead, getState, putState, modifyState)
-import Text.Parsec.Error (ParseError, errorPos)
-import Text.Parsec.Pos ( SourcePos
-                       , SourceName, Line, Column
-                       , sourceName, sourceLine, sourceColumn
-                       )
 
 import Control.Monad
 import Control.Monad.Identity
 import Text.Luthor hiding (getState, putState, modifyState)
 import Text.Luthor.Syntax
 import qualified Text.Parsec.Prim as P
-import qualified Text.Parsec.Combinator as P
-
 
 -- |Opaque type tracking indentation state.
 data IndentState s u m = IS { _policy :: IndentPolicy

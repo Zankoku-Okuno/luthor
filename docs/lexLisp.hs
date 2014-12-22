@@ -32,7 +32,6 @@ import Text.Luthor
 import Text.Luthor.Syntax
 import Text.Luthor.Indent
 import Text.Luthor.Lex as Lex
-import Text.Luthor.Indent
 
 import Data.Functor.Identity (Identity)
 
@@ -57,7 +56,7 @@ data Token = Space
 
 type ParserST = ((),IndentState String () Identity)
 type Lexer a = ParsecI String () a
-type Lexed a = LexT String ParserST Identity Token
+type Lexed = LexT String ParserST Identity Token
 type Parser a = Luthor Token ParserST a
 
 parseLisp :: SourceName -> String -> Either ParseError [Lisp]
@@ -66,20 +65,20 @@ parseLisp = runLuthor lexer parser ((),startIndent (DontMix " ") wss)
 -- And now we can hop right into the lexer.
 -- We'll start with simple atoms...
 
-lispSymbol :: Lexed Atom
+lispSymbol :: Lexed
 lispSymbol = lexeme $ AtomTok . ASymbol <$>
     let ident = charClass "a-zA-Z_0-9-" `many1Not` charClass "0-9-"
     in ident `notFollowedBy` canStartAtom
 
-lispInteger :: Lexed Atom
+lispInteger :: Lexed
 lispInteger = lexeme $ AtomTok . ANumber . fromIntegral <$>
     integer `notFollowedBy` (dot <|> void canStartAtom)
 
-lispDecimal :: Lexed Atom
+lispDecimal :: Lexed
 lispDecimal = lexeme $ AtomTok . ANumber <$>
     scientific `notFollowedBy` canStartAtom
 
-lispString :: Lexed Atom
+lispString :: Lexed
 lispString = lexeme $ AtomTok . AString <$>
     dqString cEscapes `notFollowedBy` canStartAtom
 
@@ -88,7 +87,7 @@ canStartAtom = aChar $ charClass "a-zA-Z_0-9\"+-"
 
 -- and then handle punctuation.
 
-lispPunct :: Lexed Atom
+lispPunct :: Lexed
 lispPunct = lexeme $ dispatch
     [ (void $ char '(', pure OpenParen)
     , (void $ char ')', pure CloseParen)
@@ -107,15 +106,15 @@ lispPunct = lexeme $ dispatch
 wss :: [Lexer ()]
 wss = [ void lws, void $ lineComment ";", bsnl ]
 
-ws :: Lexed Atom
+ws :: Lexed
 ws = lexeme $ Space <$ many1_ (choice wss)
 
 -- Finally, we tie it all together into a token recognizer.
 
-lispAtom :: Lexed Atom
+lispAtom :: Lexed
 lispAtom = choice [ lispSymbol, lispInteger, lispDecimal, lispString ]
 
-lexer :: Lexed Atom
+lexer :: Lexed
 lexer = choice [ lispAtom, lispPunct, ws ]
 
 -- Now, we can move onto parsing. Normal s-exprs are just an atom or
@@ -131,7 +130,7 @@ lexer = choice [ lispAtom, lispPunct, ws ]
 -- from our lexeme stream, the same way the Parsec implementation has to
 -- define a way to get at the `Char`s when parsing `String`s.
 
---atom :: Parser Lisp
+atom :: Parser Lisp
 atom = unlexWith $ \t -> case t of
     AtomTok x -> Just $ Atom x
     _ -> Nothing
