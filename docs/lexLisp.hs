@@ -56,7 +56,7 @@ data Token = Space
 
 type ParserST = ((),IndentState String () Identity)
 type Lexer a = ParsecI String () a
-type Lexed = LexT String ParserST Identity Token
+type Lexed = Lex String ParserST Token
 type Parser a = Luthor Token ParserST a
 
 parseLisp :: SourceName -> String -> Either ParseError [Lisp]
