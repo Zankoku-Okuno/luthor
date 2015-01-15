@@ -33,6 +33,8 @@ import Text.Luthor.Syntax
 import Text.Luthor.Indent
 import Text.Luthor.Lex as Lex
 
+import Data.Functor.Identity (Identity)
+
 -- Let's go ahead and define our abstract syntax right up front to give
 -- context to our parsers.
 
@@ -52,12 +54,13 @@ data Token = Space
 
 -- A couple high-level shortcuts so we don't clutter the rest of the code.
 
+type ParserST = ((),IndentState String () Identity)
 type Lexer a = ParsecI String () a
-type Lexed = LexI String () Token
-type Parser a = Luthor Token () a
+type Lexed = Lex String ParserST Token
+type Parser a = Luthor Token ParserST a
 
 parseLisp :: SourceName -> String -> Either ParseError [Lisp]
-parseLisp = runLuthorI lexer parser (DontMix " ") wss ()
+parseLisp = runLuthor lexer parser ((),startIndent (DontMix " ") wss)
 
 -- And now we can hop right into the lexer.
 -- We'll start with simple atoms...
@@ -88,16 +91,16 @@ lispPunct :: Lexed
 lispPunct = lexeme $ dispatch
     [ (void $ char '(', pure OpenParen)
     , (void $ char ')', pure CloseParen)
-    , (lexIndent, pure Indent)
-    , (lexNextline, pure Nextline)
-    , (lexDedent, pure Dedent)
+    , (indent, pure Indent)
+    , (nextline, pure Nextline)
+    , (dedent, pure Dedent)
     ]
 
 -- We'll also need to deal with whitespace.
 -- It will especially come in handy when configuring the indentation part
 -- of the parser to handle blank lines appropriately.
 --
--- For our purposes, whitespace includes spaces and tabs (`lws`), 
+-- For our purposes, whitespace includes spaces and tabs (`lws`),
 -- line comments (starting with `;`) and line folds (backslash-newline).
 
 wss :: [Lexer ()]
@@ -128,29 +131,29 @@ lexer = choice [ lispAtom, lispPunct, ws ]
 -- define a way to get at the `Char`s when parsing `String`s.
 
 atom :: Parser Lisp
-atom = unlex $ \t -> case t of
+atom = unlexWith $ \t -> case t of
     AtomTok x -> Just $ Atom x
     _ -> Nothing
 
 openParen :: Parser ()
-openParen = unlex $ \t -> case t of { OpenParen -> Just (); _ -> Nothing } 
+openParen = unlexWith $ \t -> case t of { OpenParen -> Just (); _ -> Nothing }
 
 openIndent :: Parser ()
-openIndent = unlex $ \t -> case t of { Indent -> Just (); _ -> Nothing }
+openIndent = unlexWith $ \t -> case t of { Indent -> Just (); _ -> Nothing }
 
 close :: Parser ()
-close = (endOfLexemes <|>) $ unlex $ \t -> case t of
+close = (endOfLexemes <|>) $ unlexWith $ \t -> case t of
     CloseParen -> Just ()
     Dedent -> Just ()
     _ -> Nothing
 
 next :: Parser ()
-next = unlex $ \t -> case t of { Nextline -> Just (); _ -> Nothing }
+next = unlexWith $ \t -> case t of { Nextline -> Just (); _ -> Nothing }
 
 nil :: Parser Lisp
 nil = List [] <$ do
     openParen
-    unlex $ \t -> case t of { CloseParen -> Just (); _ -> Nothing }
+    unlexWith $ \t -> case t of { CloseParen -> Just (); _ -> Nothing }
 
 -- Now, we get down to the business of grammar:
 
@@ -161,7 +164,7 @@ expr :: Parser Lisp
 expr = atom <||> nil <||> parenExpr <||> indentExpr
 
 parenExpr :: Parser Lisp
-parenExpr = between openParen close $ List <$> bareExpr 
+parenExpr = between openParen close $ List <$> bareExpr
 
 indentExpr :: Parser Lisp
 indentExpr = between openIndent close $ do
