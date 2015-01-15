@@ -183,7 +183,7 @@ endOfLexemes = expect "end of input" $ do
     case t of
         (Lexeme _ x:_) -> unexpected $ show x
         (EndOfLexemes _:_) -> return ()
-        [] -> return ()
+        [] -> error "violated precondition: [Lexeme] ends with EndOfLexeme"
 
 {-| Detect whether the parser is at the end of the lexeme stream
     without consuming input.
@@ -194,7 +194,7 @@ isAtEnd = do
     return $ case t of
         (Lexeme _ _:_) -> False
         (EndOfLexemes _:_) -> True
-        [] -> True
+        [] -> error "violated precondition: [Lexeme] ends with EndOfLexeme"
 
 
 _lexShow :: (Show a) => Lexeme a -> String

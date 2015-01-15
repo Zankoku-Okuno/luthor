@@ -11,7 +11,7 @@
     or braces.
 
     WARNING: do not attempt to build an indentation-sensitive lexer using @Lex@
-    and this module. It is tially broken, and I don't want to sink that much time
+    and this module. It is fundamentally broken, and I don't want to sink that much time
     into figuring out what's wrong with it.
 -}
 {-# LANGUAGE FlexibleContexts #-}
