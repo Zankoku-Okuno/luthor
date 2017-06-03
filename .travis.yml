@@ -1,1 +1,33 @@
-language: haskell
+sudo: required
+language: generic
+
+dist: trusty
+group: edge
+
+
+env:
+  - STACK_RESOLVER=lts-8
+  - STACK_RESOLVER=lts-6
+
+before_install:
+    - sudo aptitude install -y libgmp10
+    - mkdir -p ~/.local/bin
+    - export PATH=$HOME/.local/bin:$PATH
+    - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+
+install:
+    - travis_retry stack build --resolver ${STACK_RESOLVER} --no-terminal --install-ghc --only-dependencies
+script:
+    - stack test --resolver ${STACK_RESOLVER} --install-ghc --no-terminal
+
+
+  cache:
+    directories:
+        - $HOME/.ghc
+        - $HOME/.cabal
+        - $HOME/.stack
+
+notifications:
+    email:
+        on_success: never
+on_failure: change
