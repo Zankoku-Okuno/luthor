@@ -71,14 +71,17 @@ main = do
         , scientific `fails` ".0"
         , scientific `parses` "1.4" $ 14%10
         , scientific `parses` "1.4e2" $ 140
-        , scientific `parses` "1.4p2" $ 140
+        , scientific `fails` "1.4p2"
         , scientific `parses` "-1.4e+20" $ (-1.4e20)
         , scientific `parses` "1.4e-3" $ 0.0014
         , scientific `matches` "0x1fda.f00d"
         , scientific `parses` "0x0.f" $ 15%16
+        , scientific `parses` "0x0.1p4" $ 1.0
         , scientific `matches` "-0x1fda.f00dp7a"
         , scientific `matches` "-0x1fda.0P-7a"
+        , scientific `parses` "0o0.1p4" $ 2.0
         , scientific `matches` "-0o135.02P-7"
+        , scientific `parses` "0b0.1p100" $ 8.0
         , scientific `matches` "-0b100.101P-1011"
         -- ** Character Escapes
         , many (letterEsc $ zip "ane" "\a\n\27") `parses` "\\a\\n\\e" $ "\a\n\27"

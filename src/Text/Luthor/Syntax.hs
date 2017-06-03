@@ -321,7 +321,7 @@ inAngles = between (char '<') (char '>')
 
 
 {-| Parse a minus or plus sign and return the appropriate multiplier. -}
-numSign :: (Stream s m Char) => ParsecT s u m Integer
+numSign :: (Num n, Stream s m Char) => ParsecT s u m n
 numSign = dispatch $ zip (char <$> "-+") (pure <$> [-1, 1])
 
 {-| Parse \"0x\", \"0o\", or \"0b\" case-insensitive and return the appropriate base.
@@ -333,27 +333,27 @@ numBase = P.option 10 . dispatch $ zip
     (pure <$> [16, 8, 2])
 
 {-| Parse many digits in the passed base and return the corresponding integer. -}
-numNatural :: (Stream s m Char) => Int -> ParsecT s u m Integer
+numNatural :: (Integral n, Stream s m Char) => Int -> ParsecT s u m n
 numNatural base = stringToInteger base <$> xDigits base
 
 {-| Parse many digits in the passed base and return the appropriate rational. -}
-numAfterPoint :: (Stream s m Char) => Int -> ParsecT s u m Rational
+numAfterPoint :: (Fractional n, Stream s m Char) => Int -> ParsecT s u m n
 numAfterPoint base = stringToMantissa base <$> xDigits base
 
 {-| Parse a natural in the passed base and return its reciprocal. -}
-numDenominator :: (Stream s m Char) => Int -> ParsecT s u m Rational
+numDenominator :: (Fractional n, Stream s m Char) => Int -> ParsecT s u m n
 numDenominator base = try $ do
     denom <- numNatural base
-    if denom == 0 then P.parserZero else return (1%denom)
+    if denom == 0 then P.parserZero else return (fromRational $ 1%denom)
 
 -- |Optional sign as 'numSign', defaults to positive.
-numOptSign :: (Stream s m Char) => ParsecT s u m Integer
+numOptSign :: (Num n, Stream s m Char) => ParsecT s u m n
 numOptSign = P.option 1 numSign
 
 {-| Parse an optional sign (as 'numOptSign'), then a natural number
     of the specified base (as in 'numNatural').
 -}
-numInteger :: (Stream s m Char) => Int -> ParsecT s u m Integer
+numInteger :: (Integral n, Stream s m Char) => Int -> ParsecT s u m n
 numInteger base = numOptSign <$$> (*) <*> numNatural base
 
 
@@ -361,18 +361,18 @@ numInteger base = numOptSign <$$> (*) <*> numNatural base
     Bases 10, 16, 8 and 2 are supported with appropriate
     prefixes as in 'numBase' before the digits.
 -}
-integer :: (Stream s m Char) => ParsecT s u m Integer
+integer :: (Integral n, Stream s m Char) => ParsecT s u m n
 integer = try $ numOptSign <$$> (*) <*> (numNatural =<< numBase)
 
 {-| Parse a rational number: an optional sign, then two sequences
     of digits separated by a slash. Return the ratio of the appropriate
     sign between the two numbers. Bases 10, 16, 8 and 2 are supported.
 -}
-rational :: (Stream s m Char) => ParsecT s u m Rational
+rational :: (Fractional n, Stream s m Char) => ParsecT s u m n
 rational = try $ do
-    sign <- toRational <$> numOptSign
+    sign <- numOptSign
     base <- numBase
-    numer <- toRational <$> numNatural base
+    numer <- fromRational . (%1) <$> numNatural base
     char '/'
     denom <- numDenominator base
     return $ sign * numer * denom
@@ -382,26 +382,29 @@ rational = try $ do
     finally an optional exponent, which is an exponent letter, an
     optional sign and finally one or more digits in the same base.
 
-    The base of the exponent is the same as the base of the
-    significand. In base ten, the exponent letter is either @e@ or
-    @p@, but in other bases, it must be @p@ (since @e@ is already
-    a hexdigit).
+    In base ten, the exponenet letter is @e@ (or @E@), and means
+    @*10^@. In bases two, eight, and 16, the exponenet letter is
+    @p@ (or @P@), and means @*2^@.
 
-    Note that digits are required on both sides of the (hexa)decimal
+    Note that digits are required on both sides of the decimal
     point, so neither @0.@ nor @.14@ are recognized.
 -}
-scientific :: (Stream s m Char) => ParsecT s u m Rational
+scientific :: (Fractional n, Stream s m Char) => ParsecT s u m n
 scientific = try $ do
-    sign <- toRational <$> numOptSign
+    sign <- numOptSign
     base <- numBase
-    whole <- toRational <$> numNatural base
+    whole <- (%1) <$> numNatural base
     dot
     mantissa <- numAfterPoint base
-    exponent <- option 0 $ case base of
-        10 -> (charI 'e' <|> charI 'p') *> numInteger base
-        _ ->                 charI 'p'  *> numInteger base
-    let timesExp = toRational base ^^ exponent
-    return $ sign * (whole + mantissa) * timesExp
+    exponent <- option (1%1) $ case base of
+        10 -> do
+            exp <- charI 'e' *> numInteger base
+            pure $ (10%1) ^^ exp
+        _ -> do
+            exp <- charI 'p' *> numInteger base
+            pure $ (2%1) ^^ exp
+    -- let timesExp = (fromIntegral base % 1) ^^ exponent
+    return . fromRational $ sign * (whole + mantissa) * exponent
 
 --TODO scientific notation allowing 0. and .0
 
@@ -655,13 +658,13 @@ xDigits :: (Stream s m Char) => Int -> ParsecT s u m String
 xDigits = many1 . xDigit
 
 {-| Interpret a string as an integer in the passed base. -}
-stringToInteger :: Integral n => Int -> String -> n
+stringToInteger :: (Integral n) => Int -> String -> n
 stringToInteger base = fromIntegral . foldl impl 0
     where impl acc x = acc * fromIntegral base + (fromIntegral . digitToInt) x
 
 {-| Interpret a string as a mantissa in the passed base. -}
-stringToMantissa :: Int -> String -> Ratio Integer
-stringToMantissa base = (/ (fromIntegral base%1)) . foldr impl (0 % 1)
+stringToMantissa :: (Fractional n) => Int -> String -> n
+stringToMantissa ((%1) . fromIntegral -> base) = fromRational . foldr impl 0
     where
-    impl x acc = acc / (fromIntegral base%1) + digitToRatio x
-    digitToRatio = (%1) . fromIntegral . digitToInt
+    impl x acc = acc / base + digitToRatio x
+    digitToRatio = (/base) . fromIntegral . digitToInt

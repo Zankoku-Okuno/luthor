@@ -1,5 +1,5 @@
 name:               luthor
-version:            0.0.2
+version:            0.1.0
 stability:          experimental
 synopsis:           Tools for lexing and utilizing lexemes that integrate with Parsec.
 description:        Like parser combinators? Building a big parser? Save hundreds of
@@ -51,7 +51,8 @@ library
   default-extensions:
     DeriveFunctor,
     FlexibleContexts,
-    OverloadedStrings
+    OverloadedStrings,
+    ViewPatterns
   other-extensions: ConstraintKinds
 
 
