@@ -56,6 +56,7 @@ module Text.Luthor.Syntax (
 import Data.Ratio
 import Data.Char
 import Data.String (IsString(..))
+import Data.CaseInsensitive (CI, mk)
 import Data.Maybe
 import Data.List
 
@@ -76,15 +77,17 @@ import Control.Monad
 string :: (Stream s m Char) => String -> ParsecT s u m String
 string = try . P.string
 
---FIXME use the CI type constructor
--- |Parse a single character, case-insensitive. Normalized to lowercase.
-charI :: (Stream s m Char) => Char -> ParsecT s u m Char
-charI c = expect [toLower c] . expect [toUpper c] . satisfy $ (== toLower c) . toLower
+-- |Parse a single character, case-insensitive.
+charI :: (Stream s m Char) => Char -> ParsecT s u m (CI Char)
+charI c = mk <$> _charI c
 
 -- |Parse a string, case-insensitive. If this parser fails, it consumes no input.
 --  Normalized to lowercase.
-stringI :: (Stream s m Char) => String -> ParsecT s u m String
-stringI str = try $ mapM charI str
+stringI :: (Stream s m Char) => String -> ParsecT s u m (CI String)
+stringI str = expect (show $ mk str) . try $ mk <$> mapM _charI str
+
+_charI :: (Stream s m Char) => Char -> ParsecT s u m Char
+_charI (mk -> c) = expect (show c) . satisfy $ (== c) . mk
 
 -- |Parse a single char when it satisfies the predicate.
 --  Fails when the next input character does not satisfy the predicate.
@@ -215,7 +218,6 @@ newline = expect "newline" . void $ oneOf "\n\r"
 lineBreak :: (Stream s m Char) => ParsecT s u m ()
 lineBreak = expect "line break" $ newline <|> P.eof
 
---FIXME come up with better names (bsnl, bsnlwsbs)
 -- |Parse a backslash followed by a 'newline'
 bsnl :: (Stream s m Char) => ParsecT s u m ()
 bsnl = void $ char '\\' *> newline
@@ -224,9 +226,6 @@ bsnl = void $ char '\\' *> newline
 bsnlwsbs :: (Stream s m Char) => ParsecT s u m ()
 bsnlwsbs = void $ between2 (char '\\') $ newline *> lws
 
-
---TODO unicode: line-whitespace, any-whitespace
---TODO blank lines
 
 -- |Determine how the depth of indentation is calculated.
 data IndentPolicy = DontMix [Char]
@@ -406,8 +405,6 @@ scientific = try $ do
     -- let timesExp = (fromIntegral base % 1) ^^ exponent
     return . fromRational $ sign * (whole + mantissa) * exponent
 
---TODO scientific notation allowing 0. and .0
-
 -- |Parse a two-digit hexadacimal number.
 hexOctet :: (Stream s m Char, Integral n) => ParsecT s u m n
 hexOctet = fromIntegral . stringToInteger 16 <$> count 2 P.hexDigit
@@ -472,8 +469,6 @@ hiUniEsc = try $ do
 uniEsc :: (Stream s m Char) => ParsecT s u m Char
 uniEsc = loUniEsc <|> hiUniEsc
 
---TODO html entities
-
 
 {-| Parse a single-quoted string with no escape sequences, except that
     a single-quote in the string is encoded as two single-quote characters.
@@ -515,8 +510,6 @@ dqString table = between2 (char '\"') (catMaybes <$> P.many (normal <|> escape <
     normal = (Just <$>) . satisfy $ uniPrintMinus (charClass "\\\"")
     escape = (Just <$>) $ letterEsc table <|> decimalEsc <|> asciiEsc <|> uniEsc
     empty = (Nothing <$) $ void "\\&" <|> bsnlwsbs
-
---TODO docstrings, triple-quote strings
 
 
 -- |Parse a comment beginning with the passed string and ending at

@@ -44,6 +44,7 @@ library
   other-modules:
   build-depends:
     base >=4.6,
+    case-insensitive ==1.*,
     mtl ==2.*,
     parsec ==3.*,
     transformers >=0.3

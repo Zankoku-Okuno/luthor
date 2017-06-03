@@ -31,7 +31,7 @@ The API docs have sufficient examples for the [Combinator](http://hackage.haskel
 
 Here's an [extended example](lisp.md) of a Lisp parser. It touches on most of the library, except the lexing tools.
 
-An example of the lexing tools should be on its way whenever I get around to it. If you ask for it in the [issues](https://github.com/Zankoku-Okuno/luthor/issues), I'll be right on it.
+An example of the lexing tools might be on its way if I ever get around to it. If you ask for it in the [issues](https://github.com/Zankoku-Okuno/luthor/issues), I'll be right on it.
 
 
 * [API Reference](https://hackage.haskell.org/package/luthor)
