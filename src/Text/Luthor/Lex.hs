@@ -36,7 +36,6 @@
     using 'unlex' and satisfy', 4) write your parsers and connect them with your lexers
     using 'runLuthorT'.
 -}
-{-# LANGUAGE DeriveFunctor, FlexibleContexts #-}
 module Text.Luthor.Lex (
     -- * Basic Concepts
       LexT

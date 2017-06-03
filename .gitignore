@@ -41,3 +41,5 @@ tramp
 *.key
 _darcs
 darcs*
+cabal.sandbox.config
+.stack-work/

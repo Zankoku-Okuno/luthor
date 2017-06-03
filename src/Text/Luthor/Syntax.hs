@@ -3,7 +3,6 @@
     we also export the sub-token parsers they were built out of: 'numSign', 'numNatural',
     'numExponent', &c.
 -}
-{-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
 module Text.Luthor.Syntax (
     -- * Basic Characters and Strings
       char, string, charI, stringI
@@ -510,7 +509,7 @@ sqString = between2 (char '\'') (P.many $ normal <|> escape)
 dqString :: (Stream s m Char) => [(Char, Char)] -> ParsecT s u m String
 dqString table = between2 (char '\"') (catMaybes <$> P.many (normal <|> escape <|> empty))
     where
-    normal = (Just <$>) . satisfy $ uniPrintMinus (`elem` "\\\"")
+    normal = (Just <$>) . satisfy $ uniPrintMinus (charClass "\\\"")
     escape = (Just <$>) $ letterEsc table <|> decimalEsc <|> asciiEsc <|> uniEsc
     empty = (Nothing <$) $ void "\\&" <|> bsnlwsbs
 

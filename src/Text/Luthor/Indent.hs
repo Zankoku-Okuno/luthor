@@ -14,7 +14,6 @@
     and this module. It is fundamentally broken, and I don't want to sink that much time
     into figuring out what's wrong with it.
 -}
-{-# LANGUAGE FlexibleContexts #-}
 module Text.Luthor.Indent (
     -- * Types
       ParsecIT, ParsecI, IndentState
