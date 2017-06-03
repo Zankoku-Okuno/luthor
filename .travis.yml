@@ -6,8 +6,8 @@ group: edge
 
 
 env:
-  - STACK_RESOLVER=lts-8
-  - STACK_RESOLVER=lts-6
+    - STACK_RESOLVER=lts-8
+    - STACK_RESOLVER=lts-6
 
 before_install:
     - sudo aptitude install -y libgmp10
@@ -21,7 +21,7 @@ script:
     - stack test --resolver ${STACK_RESOLVER} --install-ghc --no-terminal
 
 
-  cache:
+cache:
     directories:
         - $HOME/.ghc
         - $HOME/.cabal
