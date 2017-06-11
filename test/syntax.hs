@@ -126,30 +126,27 @@ type Parser = Parsec String ()
 run p = runP p () ""
 
 test :: Bool -> Parser a -> String -> IO Bool
-test expect p input = do
-    case (expect, run (p <* P.eof) input) of
-        (True, Right _) -> return True
-        (False, Left _) -> return True
-        (True, Left err) -> do
-            putErrLn $ "false negative on " ++ show input
-            putErrLn $ show err
-            return False
-        (False, Right _) -> do
-            putErrLn $ "false positive on " ++ show input
-            return False
+test expect p input = case (expect, run (p <* P.eof) input) of
+    (True, Right _) -> return True
+    (False, Left _) -> return True
+    (True, Left err) -> falseNegative input err
+    (False, Right _) -> do
+        putErrLn $ "false positive on " ++ show input
+        return False
 
 parses :: (Show a, Eq a) => Parser a -> String -> a -> IO Bool
-parses p input expect = do
-    case run (p <* P.eof) input of
-        Right val | val == expect -> return True
-                  | otherwise -> do
-                        putErrLn $ "incorrect parse on " ++ show input
-                        putErrLn $ "found " ++ show val ++ " expecting " ++ show expect
-                        return False
-        Left err -> do
-            putErrLn $ "false negative on " ++ show input
-            putErrLn $ show err
-            return False
+parses p input expect = case run (p <* P.eof) input of
+    Right val | val == expect -> return True
+              | otherwise -> do
+                    putErrLn $ "incorrect parse on " ++ show input
+                    putErrLn $ "found " ++ show val ++ " expecting " ++ show expect
+                    return False
+    Left err -> falseNegative input err
+
+falseNegative input err = do
+    putErrLn $ "false negative on " ++ show input
+    putErrLn $ show err
+    return False
 
 matches = test True
 fails = test False

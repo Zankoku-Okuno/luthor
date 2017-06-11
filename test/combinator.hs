@@ -46,36 +46,36 @@ main = do
         -- * Common Structures
         -- ** Terminate
         , ((anyChar `manyTill` (string "\n\r")) *> string "\n\r") `matches` "sdg\na;on\n\r"
-        , ((anyChar `manyTill` (string "\n\r"))) `fails` "sdg\na;on\n\r"
+        , (anyChar `manyTill` (string "\n\r")) `fails` "sdg\na;on\n\r"
         , ((anyChar `manyThru` (string "\n\r")) *> string "\n\r") `fails` "sdg\na;on\n\r"
-        , ((anyChar `manyThru` (string "\n\r"))) `matches` "sdg\na;on\n\r"
-        , ((anyChar `manyThru` (string "\n\r"))) `fails` "sdg\na;on"
+        , (anyChar `manyThru` (string "\n\r")) `matches` "sdg\na;on\n\r"
+        , (anyChar `manyThru` (string "\n\r")) `fails` "sdg\na;on"
         , (string "foo" `chomp` char '\n') `matches` "foo\n"
         , (string "foo" `chomp` char '\n') `matches` "foo"
         -- ** Surround
-        , (between2 (char '\'') anyChar) `matches` "'a'"
-        , (between2 (char '\'') anyChar) `matches` "'''"
+        , between2 (char '\'') anyChar `matches` "'a'"
+        , between2 (char '\'') anyChar `matches` "'''"
         -- ** Intercalate
         , (char 'a' `sepBy` char ' ') `matches` "a a a"
         , ((char 'a' `sepBy` char ' ') *> char ' ') `matches` "a "
-        , ((char 'a' `sepBy` char ' ')) `matches` ""
+        , (char 'a' `sepBy` char ' ') `matches` ""
         , ((char 'a' `sepBy` char ' ') *> char ' ') `matches` " "
         , (char 'a' `sepEndBy` char ' ') `matches` "a a a"
-        , ((char 'a' `sepEndBy` char ' ')) `matches` "a "
-        , ((char 'a' `sepEndBy` char ' ')) `matches` ""
-        , ((char 'a' `sepEndBy` char ' ')) `fails` " "
+        , (char 'a' `sepEndBy` char ' ') `matches` "a "
+        , (char 'a' `sepEndBy` char ' ') `matches` ""
+        , (char 'a' `sepEndBy` char ' ') `fails` " "
         , (char 'a' `endBy` char ' ') `fails` "a a a"
         , (char 'a' `endBy` char ' ') `matches` "a a a "
-        , ((char 'a' `endBy` char ' ')) `matches` "a "
-        , ((char 'a' `endBy` char ' ')) `matches` ""
-        , ((char 'a' `endBy` char ' ')) `fails` " "
+        , (char 'a' `endBy` char ' ') `matches` "a "
+        , (char 'a' `endBy` char ' ') `matches` ""
+        , (char 'a' `endBy` char ' ') `fails` " "
         , ((string "aa" `endBy` char ',') *> (char 'a' `endBy` char ',')) `matches` "aa,a,"
         , (char 'a' `sepAroundBy` char ' ') `matches` "a a a"
         , (char 'a' `sepAroundBy` char ' ') `matches` "a a a "
         , (char 'a' `sepAroundBy` char ' ') `matches` " a a a "
         , (char 'a' `sepAroundBy` char ' ') `matches` " a a a"
-        , ((char 'a' `sepAroundBy` char ' ')) `matches` ""
-        , ((char 'a' `sepAroundBy` char ' ')) `fails` " "
+        , (char 'a' `sepAroundBy` char ' ') `matches` ""
+        , (char 'a' `sepAroundBy` char ' ') `fails` " "
         -- ** Chaining
         , (char 'a' `chainl1` (const <$ char ' ')) `matches` "a a a"
         , ((char 'a' `chainl1` (const <$ char ' ')) *> char ' ') `matches` "a "
@@ -85,7 +85,7 @@ main = do
         , (lookAhead (string "foo") <|> string "fly") `matches` "fly"
         , (lookAhead (string "foo") <|> string "ly") `fails` "fly"
         , (lookAhead (string "foo") *> string "foo") `matches` "foo"
-        , ((char 'a' `notFollowedBy` string "foo") *> string ("fly")) `matches` "afly"
+        , ((char 'a' `notFollowedBy` string "foo") *> string "fly") `matches` "afly"
         , (char 'a' `notFollowedBy` string "foo") `fails` "afoo"
         ]
     if id `all` results then exitSuccess else exitFailure
@@ -95,30 +95,27 @@ type Parser = Parsec String ()
 run p = runP p () ""
 
 test :: Bool -> Parser a -> String -> IO Bool
-test expect p input = do
-    case (expect, run (p <* P.eof) input) of
-        (True, Right _) -> return True
-        (False, Left _) -> return True
-        (True, Left err) -> do
-            putErrLn $ "false negative on " ++ show input
-            putErrLn $ show err
-            return False
-        (False, Right _) -> do
-            putErrLn $ "false positive on " ++ show input
-            return False
+test expect p input = case (expect, run (p <* P.eof) input) of
+    (True, Right _) -> return True
+    (False, Left _) -> return True
+    (True, Left err) -> falseNegative input err
+    (False, Right _) -> do
+        putErrLn $ "false positive on " ++ show input
+        return False
 
 parses :: (Show a, Eq a) => Parser a -> String -> a -> IO Bool
-parses p input expect = do
-    case run (p <* P.eof) input of
-        Right val | val == expect -> return True
-                  | otherwise -> do
-                        putErrLn $ "incorrect parse on " ++ show input
-                        putErrLn $ "found " ++ show val
-                        return False
-        Left err -> do
-            putErrLn $ "false negative on " ++ show input
-            putErrLn $ show err
-            return False
+parses p input expect = case run (p <* P.eof) input of
+    Right val | val == expect -> return True
+              | otherwise -> do
+                    putErrLn $ "incorrect parse on " ++ show input
+                    putErrLn $ "found " ++ show val
+                    return False
+    Left err -> falseNegative input err
+
+falseNegative input err = do
+    putErrLn $ "false negative on " ++ show input
+    putErrLn $ show err
+    return False
 
 matches = test True
 fails = test False

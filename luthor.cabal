@@ -43,7 +43,7 @@ library
     Text.Luthor.Indent
   other-modules:
   build-depends:
-    base >=4.6,
+    base >=4.6 && <5,
     case-insensitive ==1.*,
     mtl ==2.*,
     parsec ==3.*,
@@ -58,43 +58,46 @@ library
 
 
 test-suite test-combinator
-    hs-source-dirs: test
-    type: exitcode-stdio-1.0
-    main-is: combinator.hs
-    build-depends:
-      base,
-      mtl,
-      parsec,
-      luthor
-    default-extensions:
-      FlexibleContexts,
-      OverloadedStrings
+  hs-source-dirs: test
+  type: exitcode-stdio-1.0
+  main-is: combinator.hs
+  build-depends:
+    base,
+    mtl,
+    parsec,
+    luthor
+  default-language: Haskell2010
+  default-extensions:
+    FlexibleContexts,
+    OverloadedStrings
 
 test-suite test-syntax
-    hs-source-dirs: test
-    type: exitcode-stdio-1.0
-    main-is: syntax.hs
-    build-depends:
-      base,
-      mtl,
-      parsec,
-      luthor
-    default-extensions:
-      FlexibleContexts,
-      OverloadedStrings
+  hs-source-dirs: test
+  type: exitcode-stdio-1.0
+  main-is: syntax.hs
+  build-depends:
+    base,
+    mtl,
+    parsec,
+    luthor
+  default-language: Haskell2010
+  default-extensions:
+    FlexibleContexts,
+    OverloadedStrings
 
 test-suite test-indent
-    hs-source-dirs: test
-    type: exitcode-stdio-1.0
-    main-is: indent.hs
-    build-depends:
-      base,
-      mtl,
-      parsec,
-      luthor
-    default-extensions:
-      FlexibleContexts,
-      OverloadedStrings
+  hs-source-dirs: test
+  type: exitcode-stdio-1.0
+  main-is: indent.hs
+  build-depends:
+    base,
+    mtl,
+    parsec,
+    luthor
+  default-language: Haskell2010
+  default-extensions:
+    FlexibleContexts,
+    OverloadedStrings
 
 source-repository head
   type: git
