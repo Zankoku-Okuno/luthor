@@ -443,19 +443,19 @@ decimalEsc = try $ do
     return $ chr n
 
 -- |Escape sequences for bytes (including ASCII).
---  Represented by a backslash + two hexdigits.
+--  Represented by a backslash + lowercase \'x\' followed by two hexdigits.
 asciiEsc :: (Stream s m Char) => ParsecT s u m Char
 asciiEsc = try $ stringI "\\x" *> (chr <$> hexOctet)
 
 -- |Escape sequences in the Unicode Basic Multilingual Plane (BMP). C.f. 'hiUniEsc'.
---  Represented by a backslash+lowercase 'u' followed by four hexdigits.
+--  Represented by a backslash+lowercase \'u\' followed by four hexdigits.
 loUniEsc :: (Stream s m Char) => ParsecT s u m Char
 loUniEsc = try $ do
     P.string "\\u"
     chr . stringToInteger 16 <$> P.count 4 P.hexDigit
 
 -- |Escape sequences outside the Unicode BMP. C.f. 'loUniEsc'.
---  Represented by a backslash+uppercase 'U' followed by five or six
+--  Represented by a backslash+uppercase \'U\' followed by five or six
 --  hexdigits totalling at most 0x10FFFF
 hiUniEsc :: (Stream s m Char) => ParsecT s u m Char
 hiUniEsc = try $ do
